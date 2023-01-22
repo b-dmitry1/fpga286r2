@@ -1,0 +1,149 @@
+# -------------------------------------------------------------------------- #
+#
+# Copyright (C) 1991-2013 Altera Corporation
+# Your use of Altera Corporation's design tools, logic functions 
+# and other software and tools, and its AMPP partner logic 
+# functions, and any output files from any of the foregoing 
+# (including device programming or simulation files), and any 
+# associated documentation or information are expressly subject 
+# to the terms and conditions of the Altera Program License 
+# Subscription Agreement, Altera MegaCore Function License 
+# Agreement, or other applicable license agreement, including, 
+# without limitation, that your use is for the sole purpose of 
+# programming logic devices manufactured by Altera and sold by 
+# Altera or its authorized distributors.  Please refer to the 
+# applicable agreement for further details.
+#
+# -------------------------------------------------------------------------- #
+#
+# Quartus II 64-Bit
+# Version 13.0.1 Build 232 06/12/2013 Service Pack 1 SJ Web Edition
+# Date created = 00:12:21  January 02, 2023
+#
+# -------------------------------------------------------------------------- #
+#
+# Notes:
+#
+# 1) The default values for assignments are stored in the file:
+#		Main_assignment_defaults.qdf
+#    If this file doesn't exist, see file:
+#		assignment_defaults.qdf
+#
+# 2) Altera recommends that you do not modify this file. This
+#    file is updated automatically by the Quartus II software
+#    and any changes you make may be lost or overwritten.
+#
+# -------------------------------------------------------------------------- #
+
+
+set_global_assignment -name FAMILY "Cyclone IV E"
+set_global_assignment -name DEVICE EP4CE15F23C8
+set_global_assignment -name TOP_LEVEL_ENTITY Main
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION "13.0 SP1"
+set_global_assignment -name PROJECT_CREATION_TIME_DATE "00:12:21  JANUARY 02, 2023"
+set_global_assignment -name LAST_QUARTUS_VERSION "13.0 SP1"
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
+set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 1
+set_global_assignment -name VERILOG_FILE Main.v
+set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
+set_global_assignment -name USE_CONFIGURATION_DEVICE OFF
+set_global_assignment -name CRC_ERROR_OPEN_DRAIN OFF
+set_global_assignment -name CONFIGURATION_VCCIO_LEVEL 3.3V
+set_global_assignment -name OUTPUT_IO_TIMING_NEAR_END_VMEAS "HALF VCCIO" -rise
+set_global_assignment -name OUTPUT_IO_TIMING_NEAR_END_VMEAS "HALF VCCIO" -fall
+set_global_assignment -name OUTPUT_IO_TIMING_FAR_END_VMEAS "HALF SIGNAL SWING" -rise
+set_global_assignment -name OUTPUT_IO_TIMING_FAR_END_VMEAS "HALF SIGNAL SWING" -fall
+set_location_assignment PIN_G1 -to clk
+set_location_assignment PIN_T1 -to reset_n
+set_location_assignment PIN_B3 -to vga_vsync
+set_location_assignment PIN_A3 -to vga_hsync
+set_location_assignment PIN_B4 -to vga_r[4]
+set_location_assignment PIN_A4 -to vga_r[5]
+set_location_assignment PIN_B5 -to vga_r[6]
+set_location_assignment PIN_A5 -to vga_r[7]
+set_location_assignment PIN_B6 -to vga_g[4]
+set_location_assignment PIN_A6 -to vga_g[5]
+set_location_assignment PIN_B7 -to vga_g[6]
+set_location_assignment PIN_A7 -to vga_g[7]
+set_location_assignment PIN_B8 -to vga_b[4]
+set_location_assignment PIN_A8 -to vga_b[5]
+set_location_assignment PIN_B9 -to vga_b[6]
+set_location_assignment PIN_A9 -to vga_b[7]
+set_location_assignment PIN_B10 -to usb1_p
+set_location_assignment PIN_A10 -to usb1_m
+set_location_assignment PIN_E11 -to usb2_p
+set_location_assignment PIN_A13 -to usb2_m
+set_location_assignment PIN_B13 -to sd_cs_n
+set_location_assignment PIN_A14 -to sd_mosi
+set_location_assignment PIN_B14 -to sd_sck
+set_location_assignment PIN_A15 -to sd_miso
+set_location_assignment PIN_B15 -to audio_left
+set_location_assignment PIN_A16 -to audio_right
+set_location_assignment PIN_B16 -to cpu_d10
+set_location_assignment PIN_A17 -to cpu_d11
+set_location_assignment PIN_B17 -to cpu_d12
+set_location_assignment PIN_A18 -to cpu_d15
+set_location_assignment PIN_B18 -to cpu_d13
+set_location_assignment PIN_A19 -to cpu_d14_ad15_a9
+set_location_assignment PIN_B19 -to cpu_intr_a16_a8
+set_location_assignment PIN_A20 -to cpu_x_a17_a7
+set_location_assignment PIN_B20 -to cpu_clk
+set_location_assignment PIN_C17 -to cpu_nmi
+set_location_assignment PIN_B21 -to cpu_bhe_x_a11
+set_location_assignment PIN_B22 -to cpu_error_a18_a6
+set_location_assignment PIN_C21 -to cpu_inta_ad14_a12
+set_location_assignment PIN_C22 -to cpu_mio_ad13_a13
+
+set_location_assignment PIN_D21 -to cpu_d7_a19_a5
+set_location_assignment PIN_D22 -to cpu_hold_ad12_a14
+set_location_assignment PIN_E21 -to cpu_hlda_ad11_a15
+set_location_assignment PIN_E22 -to cpu_s1_ad10_x
+set_location_assignment PIN_F21 -to cpu_s0_ad9_d4
+set_location_assignment PIN_F22 -to cpu_d5_x_a3
+set_location_assignment PIN_F20 -to cpu_d6_bhe_a4
+set_location_assignment PIN_H21 -to cpu_a23
+set_location_assignment PIN_H22 -to cpu_a21_ad7_d5
+set_location_assignment PIN_J21 -to cpu_a22_ad8_d3
+set_location_assignment PIN_J22 -to cpu_d4_rd_a2
+set_location_assignment PIN_K21 -to cpu_a19_ad6_d6
+set_location_assignment PIN_L21 -to cpu_a20
+set_location_assignment PIN_M20 -to cpu_d3_hold_a1
+set_location_assignment PIN_M22 -to cpu_a17_ad5_x
+set_location_assignment PIN_M21 -to cpu_a18
+
+set_location_assignment PIN_N20 -to cpu_a15_ad4_d2
+set_location_assignment PIN_P22 -to cpu_d2_hlda_a0
+set_location_assignment PIN_P21 -to cpu_a16
+set_location_assignment PIN_T18 -to cpu_a6
+set_location_assignment PIN_U22 -to cpu_a14
+set_location_assignment PIN_U21 -to cpu_a12
+set_location_assignment PIN_V22 -to cpu_a10
+set_location_assignment PIN_V21 -to cpu_a13
+set_location_assignment PIN_W22 -to cpu_a4
+set_location_assignment PIN_W21 -to cpu_a7
+set_location_assignment PIN_Y22 -to cpu_a8_ad3_d7
+set_location_assignment PIN_Y21 -to cpu_a11_reset_rd
+set_location_assignment PIN_AA21 -to cpu_a9_ad2_d0
+set_location_assignment PIN_AA20 -to cpu_a5_ad1_d1
+set_location_assignment PIN_AB20 -to cpu_d8_den_reset
+set_location_assignment PIN_AA19 -to cpu_reset_ad0_int
+set_location_assignment PIN_AB19 -to cpu_d9_ale_busrq
+set_location_assignment PIN_AA18 -to cpu_a0_inta_wait
+set_location_assignment PIN_AB18 -to cpu_a3_intr_halt
+
+set_location_assignment PIN_J18 -to cpu_a1_x_mreq
+set_location_assignment PIN_K18 -to cpu_d0_readymio_wrrfsh
+set_location_assignment PIN_K17 -to cpu_a2_x_iorq
+set_location_assignment PIN_M19 -to cpu_d1_wr_x
+
+set_location_assignment PIN_N17 -to flop_change_n
+set_location_assignment PIN_P17 -to flop_wprot_n
+set_location_assignment PIN_N18 -to flop_trk0_n
+set_location_assignment PIN_N19 -to flop_index_n
+
+set_location_assignment PIN_R18 -to intf_irq
+
+set_location_assignment PIN_R20 -to uart_rxd
+set_location_assignment PIN_R19 -to uart_txd
