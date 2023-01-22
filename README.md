@@ -16,9 +16,31 @@ https://github.com/b-dmitry1/BIOS
 ### PCB
 P-CAD 2006, Sprint Layout 6, and prepared for manufacturing Gerber files could be found in a "pcb" directory.
 
+Technology:
+* 4-layer PCB.
+* 100x100 mm size.
+* 0.2 mm min hole.
+* 0.46 mm min via diameter.
+* 0.127 mm min track.
+
+I have paid only $7 for 5 PCBs on jlcpcb.com.
+It is safe to increase hole size to 0.3 mm, via to 0.63mm, and track width to 0.15 mm.
+
+All the electronic components including FPGA (EP4CE15F23C8N) and CPU (80c286) could be found on AliExpress.
+
 ![top](pictures/board.jpg)
+
+Top view:
+
 ![top](pictures/top.jpg)
+
+Bottom view:
+
 ![bottom](pictures/bottom.jpg)
+
+Simplified schematic diagram:
+
+![top](pictures/sch1.png)
 
 ### Compiling on Windows
 
@@ -38,3 +60,6 @@ Just write a FreeDos or an empty image to a SD card, mount it and add your files
 
 ### Disclaimer
 The project is provided "as is" without any warranty. Use at your own risk.
+
+Due to lack of time, I made the PCB without any schematic diagrams, sorry.
+If you really need schematic diagram - contact me and I'll create it.
