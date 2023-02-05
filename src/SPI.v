@@ -2,14 +2,14 @@ module SPI(
 	input wire clk,
 	
 	input wire [11:0] addr,
-	input wire [15:0] din,
-	output wire [15:0] dout,
+	input wire [7:0] din,
+	output wire [7:0] dout,
 	input wire cpu_iordin,
 	output reg cpu_iordout,
 	input wire cpu_iowrin,
 	output reg cpu_iowrout,
 	
-	output wire ready,
+	output reg ready,
 	
 	output wire cs_n,
 	input wire miso,
@@ -34,13 +34,13 @@ assign mosi = sout[7];
 
 assign dout = sin;
 
-assign ready = ~|shift;
-
 wire iord = cpu_iordout ^ cpu_iordin;
 wire iowr = cpu_iowrout ^ cpu_iowrin;
 
 always @(posedge clk)
 begin
+	ready <= ~|shift;
+
 	cpu_iordout <= cpu_iordin;
 	cpu_iowrout <= cpu_iowrin;
 	
@@ -48,11 +48,11 @@ begin
 		cs <= din[0];
 	
 	if (iowr && (addr[11:0] == 12'h0B1))	// 0xB1
-		preset <= din[15:8];
+		preset <= din;
 	
 	if (iowr && (addr[11:0] == 12'h0B2))	// 0xB2
 	begin
-		sout <= din[7:0];
+		sout <= din;
 		shift <= 16'd1;
 		div <= 8'd0;
 	end

@@ -11,9 +11,9 @@ module VGA(
 	input wire mwrin,
 	output reg mwrout,
 	
-	input wire [11:0] port,
-	input wire [15:0] iodin,
-	output reg [15:0] iodout,
+	input wire [7:0] port,
+	input wire [7:0] iodin,
+	output reg [7:0] iodout,
 	input wire iowrin,
 	output reg iowrout,
 	input wire iordin,
@@ -58,8 +58,6 @@ localparam
 	GPU_WRITE_2 = 3;
 
 reg [1:0] gpu_state;
-
-assign ready = (iowrin == iowrout) && (iordin == iordout) && (|vga_pal_read_index[1:0]) && (gpu_state == GPU_IDLE);
 
 reg div;
 
@@ -154,10 +152,10 @@ reg [31:0] vga_data;
 reg [7:0] vga_pan;
 
 wire [8:0] reg_addr =
-	(port == 12'h3C0) && ega ? {4'b0000, ac_index} :
-	port == 12'h3D5 ? {4'b1100, crt_index} :
-	port == 12'h3C5 ? {4'b1101, sq_index} :
-	port == 12'h3CF ? {4'b1110, gc_index} :
+	(port == 8'hC0) && ega ? {4'b0000, ac_index} :
+	port == 8'hD5 ? {4'b1100, crt_index} :
+	port == 8'hC5 ? {4'b1101, sq_index} :
+	port == 8'hCF ? {4'b1110, gc_index} :
 	9'b111111111;
 
 wire [7:0] reg_out;
@@ -172,22 +170,8 @@ VGARegs regs(.clock(~clk),
 		video_data[7:0]),
 	.q_a(rgb256), .data_a(rgbin), .wren_a(&vga_pal_write_index[1:0]),
 	.address_b(reg_addr), .q_b(reg_out),
-	.data_b(port == 12'h3C0 ? ega_color : iodin),
-	.wren_b((iowrin ^ iowrout) && ((port != 12'h3C0) || ac_data)));
-
-/*
-Palette pal(.clock(~clk),
-	.address_a(&vga_pal_write_index[1:0] ? vga_pal_write_index[9:2] :
-		vga_pal_read_index[1:0] == 2'b00 ? vga_pal_read_index[9:2] :
-		mode9 ? {5'h0, video_data[3], video_data[2], video_data[1], video_data[0]} :
-		ega ? {5'h0, video_data[24], video_data[16], video_data[8], video_data[0]} :
-		video_data[7:0]),
-	.q_a(rgb256), .data_a(rgbin), .wren_a(&vga_pal_write_index[1:0]),
-	.address_b(reg_addr), .q_b(reg_out),
-	.data_b(port == 12'h3C0 ? ega_color : iodin),
-	.wren_b((iowrin ^ iowrout) && ((port != 12'h3C0) || ac_data)));
-*/
-
+	.data_b(port == 8'hC0 ? ega_color : iodin),
+	.wren_b((iowrin ^ iowrout) && ((port != 8'hC0) || ac_data)));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // GPU
@@ -299,13 +283,18 @@ begin
 	endcase
 end
 
+reg read_palette;
+
 ////////////////////////////////////////////////////////////////////////////////////////////////
 // Main
 ////////////////////////////////////////////////////////////////////////////////////////////////
+
+assign ready = (iowrin == iowrout) && (iordin == iordout) && (|vga_pal_read_index[1:0]) && (gpu_state == GPU_IDLE);
+
 always @(posedge clk)
 begin
 	div <= ~div;
-	
+
 	//vmode <= 5'd3;
 	
 	vga_pan <=
@@ -321,13 +310,13 @@ begin
 	if (iowrin ^ iowrout)
 	begin
 		case (port)
-			12'h0BE:
+			8'hBE:
 				vmode <= iodin[4:0];
-			//12'h3C7:
+			//8'hC7:
 				//vga_pal_read_index <= {iodin, 2'b00};
-			12'h3C8:
+			8'hC8:
 				vga_pal_write_index <= {iodin, 2'b00};
-			12'h3C9:
+			8'hC9:
 			begin
 				vga_pal_write_index <= vga_pal_write_index + 10'd1;
 				case (vga_pal_write_index[1:0])
@@ -336,19 +325,19 @@ begin
 					2'b10: rgbin[17:12] <= iodin[5:0];
 				endcase
 			end
-			12'h3C0:
+			8'hC0:
 				if (~ac_data)
 					ac_index <= iodin[4:0];
-			12'h3C4:
+			8'hC4:
 				sq_index <= iodin[4:0];
-			12'h3C5:
+			8'hC5:
 			begin
 				if (sq_index == 5'h2) planes <= iodin[3:0];
 				if (sq_index == 5'h4) planar <= ~iodin[3];
 			end
-			12'h3CE:
+			8'hCE:
 				gc_index <= iodin[4:0];
-			12'h3CF:
+			8'hCF:
 			begin
 				if (gc_index == 5'h0) fill_color4 <= iodin[3:0];
 				if (gc_index == 5'h1) fill_mask4 <= iodin[3:0];
@@ -361,31 +350,31 @@ begin
 				if (gc_index == 5'h7) color_dont_care <= iodin[3:0];
 				if (gc_index == 5'h8) vga_mask <= iodin;
 			end
-			12'h3D4:
+			8'hD4:
 				crt_index <= iodin[4:0];
-			12'h3D5:
+			8'hD5:
 			begin
 				if (crt_index == 5'd12) crt12 <= iodin;
 				if (crt_index == 5'd13) crt13 <= iodin;
 				if (crt_index == 5'd19) crt19 <= iodin;
 			end
-			12'h3D9:
-				cga_color_cr <= iodin[15:8];
+			8'hD9:
+				cga_color_cr <= iodin;
 		endcase
 	end
 	
 	ac_data <=
-		(iordin ^ iordout) && (port == 12'h3DA) ? 1'b0 :
-		(iowrin ^ iowrout) && (port == 12'h3C0) ? ~ac_data :
+		(iordin ^ iordout) && (port == 8'hDA) ? 1'b0 :
+		(iowrin ^ iowrout) && (port == 8'hC0) ? ~ac_data :
 		ac_data;
 	
 	// I/O read
 	case (port)
-		12'h3C7:
+		8'hC7:
 			iodout <= vga_pal_read_index[9:2];
-		12'h3C8:
+		8'hC8:
 			iodout <= vga_pal_write_index[9:2];
-		12'h3C9:
+		8'hC9:
 		begin
 			case (vga_pal_read_index[1:0])
 				2'b01: iodout <= {2'b00, rgblatch[5:0]};
@@ -393,19 +382,19 @@ begin
 				2'b11: iodout <= {2'b00, rgblatch[17:12]};
 			endcase
 		end
-		12'h3C4:
+		8'hC4:
 			iodout <= sq_index;
-		12'h3CE:
+		8'hCE:
 			iodout <= gc_index;
-		12'h3D4:
+		8'hD4:
 			iodout <= crt_index;
-		12'h3C5,
-		12'h3CF,
-		12'h3D5:
+		8'hC5,
+		8'hCF,
+		8'hD5:
 			iodout <= reg_out[7:0];
-		12'h3D9:
-			iodout <= {2{cga_color_cr}};
-		12'h3DA:
+		8'hD9:
+			iodout <= cga_color_cr;
+		8'hDA:
 			iodout <= {4'h0, vcounter >= 10'd400, 2'b00, (vcounter >= 10'd400) || (hcounter >= 10'd320)}; // Для Wolfenstein 3D
 	endcase
 	
@@ -417,9 +406,9 @@ begin
 		rgblatch <= rgb256;
 	
 	vga_pal_read_index <=
-		(vga_pal_read_index[1:0] == 2'b00) || ((iordin ^ iordout) && (port == 12'h3C9)) ? vga_pal_read_index + 10'd1 :
-		((iowrin ^ iowrout) && (port == 12'h3C7)) ? {iodin, 2'b00} :
-		((iowrin ^ iowrout) && (port == 12'h3C9)) ? {vga_pal_read_index[9:2], 2'b00} :
+		(vga_pal_read_index[1:0] == 2'b00) || ((iordin ^ iordout) && (port == 8'hC9)) ? vga_pal_read_index + 10'd1 :
+		((iowrin ^ iowrout) && (port == 8'hC7)) ? {iodin, 2'b00} :
+		((iowrin ^ iowrout) && (port == 8'hC9)) ? {vga_pal_read_index[9:2], 2'b00} :
 		vga_pal_read_index;
 	
 	// Video mode
@@ -512,14 +501,9 @@ begin
 			end
 			else if (vga256 | ega)
 			begin
-				/*
 				red <= {rgb256[5:0], 2'b00};
 				green <= {rgb256[11:6], 2'b00};
 				blue <= {rgb256[17:12], 2'b00};
-				*/
-				red <= {video_data[7:5], 5'd0};
-				green <= {video_data[4:2], 5'd0};
-				blue <= {video_data[1:0], 6'd0};
 			end
 			else if (mode9)
 			begin

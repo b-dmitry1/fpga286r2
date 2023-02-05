@@ -149,7 +149,7 @@ wire [7:0] video_blue;
 assign vga_r = video_red[7:4];
 assign vga_g = video_green[7:4];
 assign vga_b = video_blue[7:4];
-wire [15:0] vga_iodout;
+wire [7:0] vga_iodout;
 wire [15:0] vga_dout;
 wire vga_ready;
 wire vga_planar;
@@ -161,7 +161,7 @@ reg  cpu_wrout_vga;
 
 VGA vga(.clk(clk), .reset_n(reset_n), .ready(vga_ready),
 	//.a(ca), .din(cdout), .dout(vga_dout), .mrdin(cmrdout), .mwrin(cmwrout),
-	.port(c_a[11:0]), .iodin(c_d), .iodout(vga_iodout),
+	.port(addr_8bit[7:0]), .iodin(data_8bit), .iodout(vga_iodout),
 	.iordin(cpu_rdout_vga),
 	.iordout(cpu_rdin_vga),
 	.iowrin(cpu_wrout_vga),
@@ -169,17 +169,9 @@ VGA vga(.clk(clk), .reset_n(reset_n), .ready(vga_ready),
 
 	.hsync(vga_hsync), .vsync(vga_vsync),
 	.red(video_red), .green(video_green), .blue(video_blue),
-	.video_addr(video_addr), //.video_din({/*video_din[63:16], */{4{c_d}}}),
+	.video_addr(video_addr),
 	
 	.video_din(video_din),
-	
-	/*
-	.video_din({
-		|video_addr[7:0] ? 12'h0 : 12'hf3, c_d[3:0],
-		|video_addr[7:0] ? 12'h0 : 12'hf3, c_d[7:4],
-		|video_addr[7:0] ? 12'h0 : 12'hf3, c_d[11:8],
-		|video_addr[7:0] ? 12'h0 : 12'hf3, c_d[15:12]}),
-	*/
 	
 	.gpu_addr(gpu_addr),
 	.gpu_din(gpu_dout),
@@ -197,18 +189,18 @@ VGA vga(.clk(clk), .reset_n(reset_n), .ready(vga_ready),
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // SPI
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-wire [7:0] spi_out;
+wire [7:0] spi_iodout;
 wire spi_ready;
 wire cpu_rdin_spi;
 reg  cpu_rdout_spi;
 wire cpu_wrin_spi;
 reg  cpu_wrout_spi;
 SPI spi(
-	.clk(clk2),
+	.clk(clk),
 	
-	.addr(c_a),
-	.din(c_d),
-	.dout(spi_out),
+	.addr(addr_8bit),
+	.din(data_8bit),
+	.dout(spi_iodout),
 	
 	.cpu_iordin(cpu_rdout_spi),
 	.cpu_iordout(cpu_rdin_spi),
@@ -227,7 +219,7 @@ SPI spi(
 // PIT
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 wire t1out, t2out;
-wire [15:0] pit_iodout;
+wire [7:0] pit_iodout;
 wire cpu_rdin_pit;
 reg  cpu_rdout_pit;
 wire cpu_wrin_pit;
@@ -236,8 +228,8 @@ PIT pit(
 	.clk(clk),
 	.reset_n(reset_n),
 	
-	.port(c_a),
-	.din(c_d),
+	.port(addr_8bit),
+	.din(data_8bit),
 	.dout(pit_iodout),
 
 	.cpu_iordin(cpu_rdout_pit),
@@ -253,7 +245,7 @@ PIT pit(
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // PIC
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-wire [15:0] pic_iodout;
+wire [7:0] pic_iodout;
 wire cpu_rdin_pic;
 reg  cpu_rdout_pic;
 wire cpu_wrin_pic;
@@ -264,8 +256,8 @@ PIC pic(
 	.clk(clk),
 	.reset_n(reset_n),
 	
-	.port(c_a),
-	.din(c_d),
+	.port(addr_8bit),
+	.din(data_8bit),
 	.dout(pic_iodout),
 
 	.cpu_iordin(cpu_rdout_pic),
@@ -315,6 +307,53 @@ BIOS bios(
 	.q(bios_out)
 );
 
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// 16 bit to 8 bit bridge
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+task send_io_request;
+	if (spi_write) cpu_wrout_spi <= ~cpu_wrout_spi;
+	if (spi_read) cpu_rdout_spi <= ~cpu_rdout_spi;
+	if (pit_write) cpu_wrout_pit <= ~cpu_wrout_pit;
+	if (pit_read) cpu_rdout_pit <= ~cpu_rdout_pit;
+	if (pic_write) cpu_wrout_pic <= ~cpu_wrout_pic;
+	if (pic_read) cpu_rdout_pic <= ~cpu_rdout_pic;
+	if (vga_write) cpu_wrout_vga <= ~cpu_wrout_vga;
+	if (vga_read) cpu_rdout_vga <= ~cpu_rdout_vga;
+endtask
+
+
+reg [23:0] addr_8bit;
+reg [7:0] data_8bit;
+reg [15:0] result_16bit;
+reg cycle_phase0;
+reg cycle_phase1;
+
+task process_bridge;
+	if (io_ready)
+	begin
+		if (cycle_phase0)
+		begin
+			// Cycle 0 is done -> store lower 8 bit from i/o device's output,
+			// send higher 8 bit, and advance to a next address
+			addr_8bit[0] <= 1'b1;
+			data_8bit <= c_d[15:8];
+			
+			cycle_phase0 <= 1'b0;
+			result_16bit[7:0] <= io_dout;
+
+			if (cycle_phase1)
+				send_io_request;
+		end
+		else if (cycle_phase1)
+		begin
+			cycle_phase1 <= 1'b0;
+			result_16bit[15:8] <= io_dout;
+		end
+	end
+endtask
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // CPU
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -324,31 +363,25 @@ reg [23:0] c_a;
 reg c_bhe_n;
 reg [15:0] c_d;
 
-/*
-assign cpu_d =
-	bios_read ? bios_out :
-	vram_read ? cpu_dout_sram :
-	ram_read ? cpu_dout_sdram :
-	spi_read ? spi_out :
-	//pit_read ? pit_iodout :
-	//pic_read ? pic_iodout :
-	inta ? irq_vector :
-	16'hZZZZ;
-*/
-
 always @(posedge clk)
 begin
 	cpu_d <=
 		bios_read ? bios_out :
 		vram_read ? cpu_dout_sram :
 		ram_read ? cpu_dout_sdram :
-		spi_read ? spi_out :
-		pit_read ? pit_iodout :
-		pic_read ? pic_iodout :
-		vga_read ? vga_iodout :
+		spi_read ? result_16bit :
+		pit_read ? result_16bit :
+		pic_read ? result_16bit :
+		vga_read ? result_16bit :
 		inta ? irq_vector :
 		16'hZZZZ;
 end
+
+wire [7:0] io_dout =
+	vga_read ? vga_iodout :
+	pic_read ? pic_iodout :
+	pit_read ? pit_iodout :
+	spi_iodout;
 
 always @(posedge div[0])
 begin
@@ -374,7 +407,7 @@ wire pit_area = cpu_a[11:2] == 10'b0000010000;
 // PIC: I/O 020-021
 wire pic_area = cpu_a[11:1] == 11'b00000010000;
 // VGA: I/O 3B0-3DF
-wire vga_area = (cpu_a[11:3] == 9'b000000111) || (cpu_a[11:0] == 12'h0BE);
+wire vga_area = (cpu_a[11:7] == 5'b00111) || (cpu_a[11:0] == 12'h0BE);
 
 // Decoded commands and areas
 reg bios_read;
@@ -393,6 +426,9 @@ reg pic_write;
 reg vga_read;
 reg vga_write;
 
+reg io_read;
+reg io_write;
+
 // CPU cycle status
 wire [3:0] cpu_cmd = {cpu_inta_n, cpu_mio, cpu_s1_n, cpu_s0_n};
 wire mem_read_cycle = cpu_cmd[2:0] == 3'b101;	
@@ -401,9 +437,11 @@ wire io_read_cycle = cpu_cmd[2:0] == 3'b001;
 wire io_write_cycle = cpu_cmd[2:0] == 3'b010;	
 wire inta_cycle = cpu_cmd[3:0] == 4'b0000;	
 
+wire io_ready = spi_ready && vga_ready;
+
 always @(negedge cpu_clk_n)
 begin
-	cpu_ready <= sdram_ready && sram_ready && spi_ready;
+	cpu_ready <= sdram_ready && sram_ready && io_ready && (!cycle_phase0) && (!cycle_phase1);
 
 	c_s <= {cpu_s1_n, cpu_s0_n};
 	
@@ -411,6 +449,9 @@ begin
 	begin
 		// The address is now available
 		c_a <= cpu_a;
+		c_bhe_n <= cpu_bhe_n;
+		
+		addr_8bit <= cpu_a;
 		
 		// Decode CPU address and command
 		bios_read <= bios_area & mem_read_cycle;
@@ -428,11 +469,21 @@ begin
 		pic_write <= pic_area & io_write_cycle;
 		vga_read <= vga_area & io_read_cycle;
 		vga_write <= vga_area & io_write_cycle;
+		
+		io_read <= io_read_cycle;
+		io_write <= io_write_cycle;
 	end
 	else if ((c_s[1] == 1'b0) || (c_s[0] == 1'b0))
 	begin
-		c_bhe_n <= cpu_bhe_n;
 		c_d <= cpu_d;
+		
+		data_8bit <= addr_8bit[0] ? cpu_d[15:8] : cpu_d[7:0];
+		
+		if (io_read || io_write)
+		begin
+			cycle_phase0 <= c_a[0] == 1'b0;
+			cycle_phase1 <= cpu_bhe_n == 1'b0;
+		end
 		
 		// Execute CPU's command
 		
@@ -441,11 +492,10 @@ begin
 		if (ram_read) cpu_rdout_sdram <= ~cpu_rdout_sdram;
 		if (ram_write) cpu_wrout_sdram <= ~cpu_wrout_sdram;
 
-		if (spi_write) cpu_wrout_spi <= ~cpu_wrout_spi;
-		if (pit_write) cpu_wrout_pit <= ~cpu_wrout_pit;
-		if (pic_write) cpu_wrout_pic <= ~cpu_wrout_pic;
-		if (vga_write) cpu_wrout_vga <= ~cpu_wrout_vga;
+		send_io_request;
 	end
+
+	process_bridge;
 end
 
 endmodule

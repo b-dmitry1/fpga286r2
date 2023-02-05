@@ -264,7 +264,6 @@ set_global_assignment -name VERILOG_FILE PLL1.v
 set_global_assignment -name VERILOG_FILE BIOS.v
 set_global_assignment -name VERILOG_FILE VGARegs.v
 set_global_assignment -name VERILOG_FILE VGA.v
-set_global_assignment -name VERILOG_FILE Palette.v
 set_global_assignment -name VERILOG_FILE Font.v
 set_global_assignment -name VERILOG_FILE SRAM.v
 set_global_assignment -name VERILOG_FILE Main.v
