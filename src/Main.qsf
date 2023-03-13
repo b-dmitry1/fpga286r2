@@ -256,6 +256,11 @@ set_location_assignment PIN_R22 -to intf[19]
 set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR OFF -to usb1_m
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR OFF -to usb1_p
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR OFF -to usb2_m
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR OFF -to usb2_p
 set_global_assignment -name VERILOG_FILE PIC.v
 set_global_assignment -name VERILOG_FILE PIT.v
 set_global_assignment -name VERILOG_FILE SPI.v
@@ -267,4 +272,7 @@ set_global_assignment -name VERILOG_FILE VGA.v
 set_global_assignment -name VERILOG_FILE Font.v
 set_global_assignment -name VERILOG_FILE SRAM.v
 set_global_assignment -name VERILOG_FILE Main.v
+set_global_assignment -name VERILOG_FILE UART_tx.v
+set_global_assignment -name VERILOG_FILE USB_LS_PHY.v
+set_global_assignment -name VERILOG_FILE USB_LS_HID.v
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

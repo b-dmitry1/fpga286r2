@@ -9,7 +9,25 @@
 * Some old CGA games
 * Prince of Persia (CGA and VGA mode)
 
-## How it works
+## New USB host controller almost done!
+
+My new super-duper plug-and-play low-speed USB HOST controller is now successfully initializing keyboards and mouses.
+I tried to keep it as simple as possible - now it consists of 322 lines of PHY code, and 192 lines of HID controller code.
+
+To test it:
+* Connect your mouse or keyboard to an upper USB (only low-speed and no hubs for now, sorry!).
+* Connect headphones to audio jack.
+* Every time you'll move you mouse or push buttons on a keyboard you'll hear clicks and bleeps - thus the controller
+lets you know that a device's report has been received.
+
+The goal is to create a fully plug-and-play HID host controller that will automatically parse device reports and
+provide keydown/keyup codes and mouse events.
+
+"ACK" response on "GET DESCRIPTOR" command:
+
+![top](pictures/usb_osc.jpg)
+
+## The FPGA - CPU interface
 
 80286 CPU have 5 main transaction types: Memory Read, Memory Write, I/O Read, I/O Write, and an Interrupt Acknowledge.
 Each cycle is identified by combination of signals S0, S1, M/IO, COD/INTA appearing on the CPU's buses.

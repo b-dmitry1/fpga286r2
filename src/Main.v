@@ -74,12 +74,46 @@ module Main(
 	output wire vram_we_n,
 	output wire vram_oe_n,
 	
-	input wire intf_irq_n,
-	inout wire [19:6] intf
+	output reg intf_irq_n,
+	inout reg [19:6] intf
 );
 
 assign cpu_nmi_n = 1'b1;
 assign cpu_hold = 1'b0;
+
+wire empty_txd;
+
+USB_LS_HID ls_hid(
+	.clk(clk),
+	.reset_n(reset_n),
+	
+	.led(audio_left),
+	
+	.dm(usb2_m),
+	.dp(usb2_p)
+);
+
+always @(posedge clk)
+begin
+	intf_irq_n <= 1'bZ;
+	intf[19:6] <= 14'bZZZZZZZZZZZZZZ;
+end
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// UART
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+reg [7:0] uart_tx_data;
+reg cpu_wrout_dbg;
+wire uart_tx_in;
+wire dbg_ready = cpu_wrout_dbg == uart_tx_in;
+wire empty_txd2;
+UART_tx uart_tx(
+	.clk(clk),
+	.data(data_8bit),
+	.send_in(cpu_wrout_dbg),
+	.send_out(uart_tx_in),
+	.txd(uart_txd)
+);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // PLL
@@ -88,7 +122,8 @@ wire clk250;
 wire clk_sdram;
 wire clk_sram;
 wire clk2;
-PLL1 pll1(.inclk0(clk), .c0(clk_sdram), .c1(clk250), .c2(clk_sram), .c3(clk2));
+wire clk48;
+PLL1 pll1(.inclk0(clk), .c0(clk_sdram), .c1(clk250), .c2(clk_sram), .c3(clk2), .c4(clk48));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // SDRAM
@@ -321,6 +356,7 @@ task send_io_request;
 	if (pic_read) cpu_rdout_pic <= ~cpu_rdout_pic;
 	if (vga_write) cpu_wrout_vga <= ~cpu_wrout_vga;
 	if (vga_read) cpu_rdout_vga <= ~cpu_rdout_vga;
+	if (dbg_write) cpu_wrout_dbg <= ~cpu_wrout_dbg;
 endtask
 
 
@@ -408,6 +444,8 @@ wire pit_area = cpu_a[11:2] == 10'b0000010000;
 wire pic_area = cpu_a[11:1] == 11'b00000010000;
 // VGA: I/O 3B0-3DF
 wire vga_area = (cpu_a[11:7] == 5'b00111) || (cpu_a[11:0] == 12'h0BE);
+// DEBUG UART: I/O 0BC
+wire dbg_area = cpu_a[11:0] == 12'hBC;
 
 // Decoded commands and areas
 reg bios_read;
@@ -425,6 +463,7 @@ reg pic_read;
 reg pic_write;
 reg vga_read;
 reg vga_write;
+reg dbg_write;
 
 reg io_read;
 reg io_write;
@@ -437,7 +476,7 @@ wire io_read_cycle = cpu_cmd[2:0] == 3'b001;
 wire io_write_cycle = cpu_cmd[2:0] == 3'b010;	
 wire inta_cycle = cpu_cmd[3:0] == 4'b0000;	
 
-wire io_ready = spi_ready && vga_ready;
+wire io_ready = spi_ready && vga_ready && dbg_ready;
 
 always @(negedge cpu_clk_n)
 begin
@@ -469,6 +508,7 @@ begin
 		pic_write <= pic_area & io_write_cycle;
 		vga_read <= vga_area & io_read_cycle;
 		vga_write <= vga_area & io_write_cycle;
+		dbg_write <= dbg_area & io_write_cycle;
 		
 		io_read <= io_read_cycle;
 		io_write <= io_write_cycle;
