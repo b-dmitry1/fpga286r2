@@ -13,12 +13,12 @@ It is safe to increase hole size to 0.3 mm, via to 0.63mm, and track width to 0.
 
 All the electronic components including FPGA (EP4CE15F23C8N) and CPU (80c286) could be found on AliExpress.
 
-![top](pictures/board.jpg)
+![top](../pictures/board.jpg)
 
 Top view:
 
-![top](pictures/top.jpg)
+![top](../pictures/top.jpg)
 
 Bottom view:
 
-![bottom](pictures/bottom.jpg)
+![bottom](../pictures/bottom.jpg)
