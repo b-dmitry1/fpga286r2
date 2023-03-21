@@ -21,7 +21,14 @@ module USB_LS_PHY(
 	output reg recv_out,
 	output reg [95:0] recv_data,
 	output reg [6:0] recv_size,
-	output reg [7:0] last_received_packet_type
+	output reg [7:0] last_received_packet_type,
+	
+	output reg [7:0] byte2,
+	output reg [7:0] byte3,
+	output reg [7:0] byte4,
+	output reg [7:0] byte5,
+	output reg [7:0] byte6,
+	output reg [7:0] byte7
 );
 
 localparam
@@ -39,6 +46,13 @@ localparam
 	S_RECEIVE_SYNC			= 4'd11,
 	S_RECEIVE				= 4'd12;
 
+localparam
+	R_ACK						= 8'hD2,
+	R_NAK						= 8'h5A,
+	R_STALL					= 8'h1E,
+	R_DATA0					= 8'hC3,
+	R_DATA1					= 8'h4B;
+
 reg [3:0] state;
 reg send_data_after_ctrl;
 
@@ -47,6 +61,7 @@ reg timer_exp;
 
 reg [3:0] phase;
 reg [3:0] errors;
+reg [2:0] ones;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Packet data
@@ -153,6 +168,7 @@ begin
 						dp <= 1'b0;
 						timer <= 20'd7;
 						frame_out <= ~frame_out;
+						ones <= 3'd0;
 						
 						if (send_in != send_out)
 						begin
@@ -168,18 +184,27 @@ begin
 					end
 					S_SEND:
 					begin
-						if (|bits)
+						if (ones == 3'd6)
+						begin
+							flip <= ~flip;
+							dm <= flip;
+							dp <= ~flip;
+							ones <= 3'd0;
+						end
+						else if (|bits)
 						begin
 							bits <= bits - 1'd1;
 							
 							if (data[0])
 							begin
+								ones <= ones + 1'd1;
 							end
 							else
 							begin
 								flip <= ~flip;
 								dm <= flip;
 								dp <= ~flip;
+								ones <= 3'd0;
 							end
 							
 							data <= {1'b0, data[95:1]};
@@ -208,6 +233,7 @@ begin
 						dm <= 1'bZ;
 						dp <= 1'bZ;
 						flip <= 1'b0;
+						ones <= 3'd0;
 						send_out <= ~send_out;
 						send_data_after_ctrl <= 1'b0;
 						if (send_data_after_ctrl)
@@ -215,7 +241,7 @@ begin
 							data <= send_data;
 							bits <= send_data_size;
 							state <= S_SEND;
-							timer <= 20'd3;
+							timer <= 20'd0;
 						end
 						else
 						begin
@@ -229,12 +255,13 @@ begin
 						dp <= 1'bZ;
 						flip <= 1'b1;
 						fast <= 1'b0;
+						ones <= 3'd0;
 						state <= S_RECEIVE;
 					end
 					S_RECEIVE:
 					begin
 						response_timeout <= response_timeout + 1'd1;
-						if ((&response_timeout) || (bits >= 7'd96))
+						if ((&response_timeout) || (bits >= 7'd120))
 						begin
 							state <= S_IDLE;
 						end
@@ -244,8 +271,14 @@ begin
 							recv_size <= bits;
 							recv_out <= ~recv_out;
 							flip <= 1'b0;
+							ones <= 3'd0;
 							
-							if (last_received_packet_type == 8'hC3 || last_received_packet_type == 8'h4B)
+							if (last_received_packet_type == R_STALL)
+							begin
+								// Something goes wrong. Let's re-initialize the device
+								state <= S_NODEVICE;
+							end
+							else if (last_received_packet_type == R_DATA0 || last_received_packet_type == R_DATA1)
 							begin
 								led <= ~led;
 								data <= 16'hD280;
@@ -260,12 +293,29 @@ begin
 						end
 						else
 						begin
-							if (dmi == flip)
+							if (ones == 3'd6)
+							begin
+								ones <= 3'd0;
+							end
+							else if (dmi == flip)
 							begin
 								data <= {1'b1, data[95:1]};
 								bits <= bits + 1'd1;
 								if (bits <= 7'd16)
 									last_received_packet_type <= {1'b1, last_received_packet_type[7:1]};
+								if (bits <= 7'd24)
+									byte2 <= {1'b1, byte2[7:1]};
+								if (bits <= 7'd32)
+									byte3 <= {1'b1, byte3[7:1]};
+								if (bits <= 7'd40)
+									byte4 <= {1'b1, byte4[7:1]};
+								if (bits <= 7'd48)
+									byte5 <= {1'b1, byte5[7:1]};
+								if (bits <= 7'd56)
+									byte6 <= {1'b1, byte6[7:1]};
+								if (bits <= 7'd64)
+									byte7 <= {1'b1, byte7[7:1]};
+								ones <= ones + 1'd1;
 							end
 							else
 							begin
@@ -273,6 +323,19 @@ begin
 								bits <= bits + 1'd1;
 								if (bits <= 7'd16)
 									last_received_packet_type <= {1'b0, last_received_packet_type[7:1]};
+								if (bits <= 7'd24)
+									byte2 <= {1'b0, byte2[7:1]};
+								if (bits <= 7'd32)
+									byte3 <= {1'b0, byte3[7:1]};
+								if (bits <= 7'd40)
+									byte4 <= {1'b0, byte4[7:1]};
+								if (bits <= 7'd48)
+									byte5 <= {1'b0, byte5[7:1]};
+								if (bits <= 7'd56)
+									byte6 <= {1'b0, byte6[7:1]};
+								if (bits <= 7'd64)
+									byte7 <= {1'b0, byte7[7:1]};
+								ones <= 3'd0;
 							end
 							flip <= dmi;
 						end
@@ -282,6 +345,7 @@ begin
 						// Usually, we're listening here at 4x frequency to find a start bit
 						connected <= 1'b1;
 						response_timeout <= 8'd0;
+						ones <= 3'd0;
 						
 						if ({dmi, dpi} == 2'b00)
 						begin

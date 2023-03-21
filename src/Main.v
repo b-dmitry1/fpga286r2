@@ -83,21 +83,42 @@ assign cpu_hold = 1'b0;
 
 wire empty_txd;
 
-USB_LS_HID ls_hid(
+always @(posedge clk)
+begin
+	intf_irq_n <= 1'bZ;
+	intf[19:6] <= 14'bZZZZZZZZZZZZZZ;
+end
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// USB to virtual PS/2 converter
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+wire [7:0] ps2_iodout;
+wire cpu_rdin_ps2;
+reg  cpu_rdout_ps2;
+wire cpu_wrin_ps2;
+reg  cpu_wrout_ps2;
+
+PS2 ps2(
 	.clk(clk),
 	.reset_n(reset_n),
 	
 	.led(audio_left),
 	
 	.dm(usb2_m),
-	.dp(usb2_p)
+	.dp(usb2_p),
+	
+	.port(addr_8bit),
+	.dout(ps2_iodout),
+	.din(data_8bit),
+	.cpu_iordin(cpu_rdout_ps2),
+	.cpu_iordout(cpu_rdin_ps2),
+	.cpu_iowrin(cpu_wrout_ps2),
+	.cpu_iowrout(cpu_wrin_ps2),
+	
+	.irq1(irq[1])
 );
 
-always @(posedge clk)
-begin
-	intf_irq_n <= 1'bZ;
-	intf[19:6] <= 14'bZZZZZZZZZZZZZZ;
-end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // UART
@@ -357,6 +378,8 @@ task send_io_request;
 	if (vga_write) cpu_wrout_vga <= ~cpu_wrout_vga;
 	if (vga_read) cpu_rdout_vga <= ~cpu_rdout_vga;
 	if (dbg_write) cpu_wrout_dbg <= ~cpu_wrout_dbg;
+	if (ps2_write) cpu_wrout_ps2 <= ~cpu_wrout_ps2;
+	if (ps2_read) cpu_rdout_ps2 <= ~cpu_rdout_ps2;
 endtask
 
 
@@ -409,6 +432,7 @@ begin
 		pit_read ? result_16bit :
 		pic_read ? result_16bit :
 		vga_read ? result_16bit :
+		ps2_read ? result_16bit :
 		inta ? irq_vector :
 		16'hZZZZ;
 end
@@ -417,6 +441,7 @@ wire [7:0] io_dout =
 	vga_read ? vga_iodout :
 	pic_read ? pic_iodout :
 	pit_read ? pit_iodout :
+	ps2_read ? ps2_iodout :
 	spi_iodout;
 
 always @(posedge div[0])
@@ -446,6 +471,8 @@ wire pic_area = cpu_a[11:1] == 11'b00000010000;
 wire vga_area = (cpu_a[11:7] == 5'b00111) || (cpu_a[11:0] == 12'h0BE);
 // DEBUG UART: I/O 0BC
 wire dbg_area = cpu_a[11:0] == 12'hBC;
+// PS/2: I/O 060-064
+wire ps2_area = cpu_a[11:3] == 9'b000001100;
 
 // Decoded commands and areas
 reg bios_read;
@@ -464,6 +491,8 @@ reg pic_write;
 reg vga_read;
 reg vga_write;
 reg dbg_write;
+reg ps2_read;
+reg ps2_write;
 
 reg io_read;
 reg io_write;
@@ -509,6 +538,8 @@ begin
 		vga_read <= vga_area & io_read_cycle;
 		vga_write <= vga_area & io_write_cycle;
 		dbg_write <= dbg_area & io_write_cycle;
+		ps2_read <= ps2_area & io_read_cycle;
+		ps2_write <= ps2_area & io_write_cycle;
 		
 		io_read <= io_read_cycle;
 		io_write <= io_write_cycle;

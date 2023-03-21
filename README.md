@@ -11,17 +11,18 @@
 
 ## New USB host controller is almost done!
 
-My new plug-and-play low-speed USB HOST controller is now successfully initializing keyboards and mouses.
-I tried to keep it as simple as possible - now it consists only 322 lines of PHY code, and 192 lines of HID controller code (total about 350 LEs).
+Currently only keyboards are supported, only 1 button press at a time is possible.
+This is enough for work with some apps, but not enough for games.
+
+I tried to keep the design as simple as possible - only 2 files (about 300 lines each) with 2 FSMs, total about 420 LEs.
+These FSMs make it easy to add new USB commands or to work with additional device's endpoints.
 
 To test it:
-* Connect your mouse or keyboard to an upper USB (only low-speed and no hubs for now, sorry!).
+* Connect your keyboard to an upper USB (only low-speed and no hubs/radio, sorry!).
+* Start the DOS or 16-bit Minix and try some commands like "cd" or "dir" ("ls").
 * Connect headphones to audio jack.
-* Every time you'll move you mouse or push buttons on a keyboard you'll hear clicks and bleeps - thus the controller
-lets you know that a device's report has been received.
-
-The goal is to create a fully plug-and-play HID host controller that will automatically parse device reports and
-provide keydown/keyup codes and mouse events.
+* Every time you push buttons on a keyboard you'll hear bleeps - thus the controller
+lets you know that a device's report has been received. Each key will have unique sound frequency which depends on a key's scancode.
 
 "ACK" response on "GET DESCRIPTOR" command:
 
