@@ -52,11 +52,11 @@ All the electronic components including FPGA (EP4CE15F23C8N) and CPU (80c286) co
 
 Top view:
 
-![top](pictures/top.jpg)
+![top](pictures/top.gif)
 
 Bottom view:
 
-![bottom](pictures/bottom.jpg)
+![bottom](pictures/bottom.gif)
 
 Simplified schematic diagram:
 
