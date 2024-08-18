@@ -62,6 +62,8 @@ Simplified schematic diagram:
 
 ![top](pictures/sch1.png)
 
+![top](pictures/cpu.png)
+
 ## Compiling on Windows
 
 Please use Altera Quartus II 13.0sp1 to compile the project.
