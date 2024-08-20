@@ -86,16 +86,16 @@ set_location_assignment PIN_A15 -to sd_miso
 set_location_assignment PIN_B15 -to audio_left
 set_location_assignment PIN_A16 -to audio_right
 
-set_location_assignment PIN_K18 -to cpu_d[0]
+set_location_assignment PIN_AB20 -to cpu_d[0]
 set_location_assignment PIN_M19 -to cpu_d[1]
 set_location_assignment PIN_P22 -to cpu_d[2]
 set_location_assignment PIN_M20 -to cpu_d[3]
-set_location_assignment PIN_J22 -to fdd_change_n
+set_location_assignment PIN_J22 -to cpu_d[4]
 set_location_assignment PIN_F22 -to cpu_d[5]
 set_location_assignment PIN_F20 -to cpu_d[6]
 set_location_assignment PIN_D21 -to cpu_d[7]
-set_location_assignment PIN_AB20 -to cpu_d[8]
-set_location_assignment PIN_AB19 -to cpu_d[9]
+set_location_assignment PIN_AA18 -to cpu_d[8]
+set_location_assignment PIN_K18 -to cpu_d[9]
 set_location_assignment PIN_B16 -to cpu_d[10]
 set_location_assignment PIN_A17 -to cpu_d[11]
 set_location_assignment PIN_B17 -to cpu_d[12]
@@ -115,7 +115,7 @@ set_location_assignment PIN_E21 -to cpu_hlda
 set_location_assignment PIN_E22 -to cpu_s1_n
 set_location_assignment PIN_F21 -to cpu_s0_n
 set_location_assignment PIN_AA19 -to cpu_reset
-set_location_assignment PIN_AA18 -to cpu_a[0]
+set_location_assignment PIN_AB19 -to cpu_a[0]
 set_location_assignment PIN_J18 -to cpu_a[1]
 set_location_assignment PIN_K17 -to cpu_a[2]
 set_location_assignment PIN_AB18 -to cpu_a[3]
@@ -145,8 +145,8 @@ set_location_assignment PIN_R18 -to intf_irq_n
 set_location_assignment PIN_R20 -to uart_rxd
 set_location_assignment PIN_R19 -to uart_txd
 
-set_location_assignment PIN_N17 -to cpu_d[4]
-set_location_assignment PIN_P17 -to fdd_wprot_n
+set_location_assignment PIN_N17 -to fdd_change_n
+set_location_assignment PIN_P17 -to fdd_rdata
 set_location_assignment PIN_N18 -to fdd_trk0_n
 set_location_assignment PIN_N19 -to fdd_index_n
 set_location_assignment PIN_H20 -to fdd_motor_n

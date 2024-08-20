@@ -62,8 +62,6 @@ Simplified schematic diagram:
 
 ![top](pictures/sch1.png)
 
-![top](pictures/cpu.png)
-
 ## Compiling on Windows
 
 Please use Altera Quartus II 13.0sp1 to compile the project.
@@ -77,10 +75,8 @@ Just write a FreeDos or an empty image to a SD card, mount it and add your files
 
 ## Docs and manuals
 
+* Electrical schematic diagram is in "sch" directory.
 * Please check the "doc" directory.
 
 ## Disclaimer
 The project is provided "as is" without any warranty. Use at your own risk.
-
-Due to lack of time, I made the PCB without any schematic diagrams, sorry.
-If you really need schematic diagram - contact me and I'll create it.
