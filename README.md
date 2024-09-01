@@ -43,10 +43,11 @@ Technology:
 * 0.46 mm min via diameter.
 * 0.127 mm min track.
 
-I have paid only $7 for 5 PCBs on jlcpcb.com.
 It is safe to increase hole size to 0.3 mm, via to 0.63mm, and track width to 0.15 mm.
 
 All the electronic components including FPGA (EP4CE15F23C8N) and CPU (80c286) could be found on AliExpress.
+
+FPGA pin test is included. Check the fpga_pin_test project.
 
 ![top](pictures/board.jpg)
 
