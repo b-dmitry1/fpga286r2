@@ -28,6 +28,10 @@ lets you know that a device's report has been received. Each key will have uniqu
 
 ![top](pictures/usb_osc.jpg)
 
+"NAK" response:
+
+![top](pictures/usb_nak.png)
+
 ## BIOS
 Please use this compact BIOS:
 
