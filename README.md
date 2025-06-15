@@ -9,28 +9,15 @@
 * Some old CGA games
 * Prince of Persia (CGA and VGA mode)
 
-## New USB host controller is almost done!
+## New USB host controller
 
-Currently only keyboards are supported, only 1 button press at a time is possible.
-This is enough for work with some apps, but not enough for games.
+* Full-speed (12 Mbit/s) device support for fast gaming keyboards and mouses.
+* Composite device support (Radio keyboard+mouse, 2-in-1 devices).
+* USB PHYs are now controlled by RISC-V I/O processor. Firmware was written in C and can be easily improved.
 
-I tried to keep the design as simple as possible - only 2 files (about 300 lines each) with 2 FSMs, total about 420 LEs.
-These FSMs make it easy to add new USB commands or to work with additional device's endpoints.
+In this version only upper USB port is connected. The lower one needs some firmware rework. Joystick and mouse report are ignored now and will be available soon.
 
-To test it:
-* Connect your keyboard to an upper USB (only low-speed and no hubs/radio, sorry!).
-* Start the DOS or 16-bit Minix and try some commands like "cd" or "dir" ("ls").
-* Connect headphones to audio jack.
-* Every time you push buttons on a keyboard you'll hear bleeps - thus the controller
-lets you know that a device's report has been received. Each key will have unique sound frequency which depends on a key's scancode.
-
-"ACK" response on "GET DESCRIPTOR" command:
-
-![top](pictures/usb_osc.jpg)
-
-"NAK" response:
-
-![top](pictures/usb_nak.png)
+The RISC-V core will print USB device information on a DEBUG port. If you need the DEBUG port to be controlled by main processor comment "txd" line on a RISC-V UART and uncomment "txd" line of a CPU's UART.
 
 ## BIOS
 Please use this compact BIOS:

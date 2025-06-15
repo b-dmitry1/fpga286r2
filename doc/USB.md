@@ -1,14 +1,12 @@
 # USB host
 
-* Fully automatic LS USB host controller.
+* Fully automatic full-speed USB host controller.
+* Hardware CRC5 calculation.
 * Configurable delays.
 * Automatic ACK on DATA0 and DATA1.
-* Automatic reset and re-init on STALL and on connection loss.
+* Automatic reset and re-init on STALL and on a connection loss.
 * Automatic HID device initialization.
 * Automatic periodic report requests.
-
-If you want to use it in your project:
-* Copy USB_LS_PHY.v and USB_LS_HID.v files.
-* Provide 50 MHz clock and reset (active 0) signals.
-* Connect USB d-/d+ signals.
-* Add your code to USB_LS_HID.v to parse your device's reports the way you need it.
+* New RISC-V (rv32ima 50 MHz) core controls USB traffic.
+* Composite devices support (Radio keyboard+mouse).
+* Joysticks and mass storage devices will be recognized but requires firmware upgrade.

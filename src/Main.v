@@ -89,6 +89,178 @@ begin
 	intf[19:6] <= 14'bZZZZZZZZZZZZZZ;
 end
 
+//////////////////////////////////////////////////////////////////////////////
+// RISC-V Memory map
+//////////////////////////////////////////////////////////////////////////////
+
+wire sram_area        = addr[31:28] == 4'h0;
+wire uart_area        = addr[31:24] == 8'h10;
+wire timer_area       = addr[31:24] == 8'h11;
+wire gpio_area        = addr[31:24] == 8'h13;
+wire usb_area         = addr[31:24] == 8'h14;
+wire vps2_area        = addr[31:24] == 8'h15;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// RISC-V USB
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+wire [31:0] usb_dout;
+wire        usb_ready;
+usb_phy i_usb_phy(
+	.clk   (clk),
+	.clk60m(clk60m),
+	.reset_n(reset_n),
+	.addr  (addr),
+	.din   (din),
+	.dout  (usb_dout),
+	.lane  (lane),
+	.wr    (wr),
+	.valid (valid && usb_area),
+	.ready (usb_ready),
+
+	.dm    (usb2_m),
+	.dp    (usb2_p)
+);
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// RISC-V UART
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+wire [31:0] uart_dout;
+uart i_uart
+(
+	.clk   (clk),
+	.addr  (addr),
+	.din   (din),
+	.dout  (uart_dout),
+	.lane  (lane),
+	.wr    (wr),
+	.valid (valid && uart_area),
+	.rxd   (uart_rxd),
+	.txd   (uart_txd)
+);
+
+//////////////////////////////////////////////////////////////////////////////
+// RISC-V TIMER
+//////////////////////////////////////////////////////////////////////////////
+
+reg [63:0] mtime;
+reg [63:0] mtimecmp;
+reg [19:0] timer_div;
+reg [31:0] timer_dout;
+wire       timer_irq = (mtimecmp[63:0] != 64'd0) && (mtime[63:0] > mtimecmp[63:0]);
+always @(posedge clk or negedge reset_n)
+begin
+	if (~reset_n)
+	begin
+		mtime    <= 64'd0;
+		mtimecmp <= 64'd0;
+	end
+	else
+	begin
+		// Increment every 1 us
+		timer_div <= timer_div == 19'd49 ? 5'd0 : timer_div + 1'd1;
+
+		if (valid && wr && timer_area && addr[15:0] == 16'h4000)
+			mtimecmp[31: 0] <= din;
+		if (valid && wr && timer_area && addr[15:0] == 16'h4004)
+			mtimecmp[63:32] <= din;
+
+		if (valid && wr && timer_area && addr[15:0] == 16'hBFF8)
+			mtime[31: 0] <= din;
+		else if (valid && wr && timer_area && addr[15:0] == 16'hBFFC)
+			mtime[63:32] <= din;
+		else
+			mtime        <= timer_div == 8'd49 ? mtime + 32'd1 : mtime;
+
+		case (addr[3:2])
+			2'b00: timer_dout <= mtimecmp[31: 0];
+			2'b01: timer_dout <= mtimecmp[63:32];
+			2'b10: timer_dout <= mtime   [31: 0];
+			2'b11: timer_dout <= mtime   [63:32];
+		endcase
+	end
+end
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// RISC-V
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+wire [31:0] riscv_gpia;
+reg  [31:0] riscv_gpoa;
+
+wire [31:0] addr;
+wire [31:0] din;
+reg  [31:0] dout;
+wire [ 3:0] lane;
+wire        wr;
+wire        valid;
+reg         ready;
+riscv i_cpu
+(
+	.clk   (clk),
+	.rst   (~reset_n),
+	.addr  (addr),
+	.dout  (din),
+	.din   (usb_area ? usb_dout : dout),
+	.lane  (lane),
+	.wr    (wr),
+	.valid (valid),
+	.ready (ready || usb_ready),
+	
+	.timer_irq (timer_irq)
+);
+
+reg last_valid;
+
+always @(posedge clk or negedge reset_n)
+begin
+	if (~reset_n)
+	begin
+		ready <= 0;
+		last_valid <= 0;
+	end
+	else
+	begin
+		// Peripherial to CPU data bus
+		last_valid <= valid;
+		if (last_valid && valid && ~ready)
+		begin
+			dout <=
+				sram_area ? sram_dout :
+				uart_area ? uart_dout :
+				timer_area ? timer_dout :
+				gpio_area ? riscv_gpia :
+				usb_area ? usb_dout :
+				vps2_area ? vps2_dout :
+				32'hFFFFFFFF;
+		end
+
+		if (valid & wr)
+		begin
+			if (gpio_area)
+				riscv_gpoa <= din;
+		end
+		
+		// "Ready" control
+		ready <= last_valid && valid && ~ready;
+	end
+end
+
+//////////////////////////////////////////////////////////////////////////////
+// Boot ROM / RAM
+//////////////////////////////////////////////////////////////////////////////
+
+wire [31:0] sram_dout;
+reg sram_wr;
+riscv_ram i_riscv_sram
+(
+	.clock   (clk),
+	.data    (din),
+	.address (addr[13:2]),
+	.wren    (valid && wr && sram_area),
+	.byteena (lane),
+	.q       (sram_dout)
+);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // USB to virtual PS/2 converter
@@ -99,14 +271,19 @@ reg  cpu_rdout_ps2;
 wire cpu_wrin_ps2;
 reg  cpu_wrout_ps2;
 
+wire [31:0] vps2_dout;
+wire        vps2_ready;
 PS2 ps2(
 	.clk(clk),
 	.reset_n(reset_n),
 	
-	.led(audio_left),
-	
-	.dm(usb2_m),
-	.dp(usb2_p),
+	.r_addr  (addr),
+	.r_din   (din),
+	.r_dout  (vps2_dout),
+	.r_lane  (lane),
+	.r_wr    (wr),
+	.r_valid (valid && vps2_area),
+	.r_ready (vps2_ready),
 	
 	.port(addr_8bit),
 	.dout(ps2_iodout),
@@ -133,18 +310,17 @@ UART_tx uart_tx(
 	.data(data_8bit),
 	.send_in(cpu_wrout_dbg),
 	.send_out(uart_tx_in),
-	.txd(uart_txd)
+//	.txd(uart_txd)
 );
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // PLL
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-wire clk250;
 wire clk_sdram;
 wire clk_sram;
 wire clk2;
-wire clk48;
-PLL1 pll1(.inclk0(clk), .c0(clk_sdram), .c1(clk250), .c2(clk_sram), .c3(clk2), .c4(clk48));
+wire clk60m;
+PLL1 i_pll1(.inclk0(clk), .c0(clk_sdram), .c2(clk_sram), .c3(clk2), .c4(clk60m));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // SDRAM
@@ -444,7 +620,7 @@ wire [7:0] io_dout =
 	ps2_read ? ps2_iodout :
 	spi_iodout;
 
-always @(posedge div[0])
+always @(negedge div[0])
 begin
 	cpu_clk_n <= ~cpu_clk_n;
 end

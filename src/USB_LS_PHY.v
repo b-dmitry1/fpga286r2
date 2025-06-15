@@ -84,6 +84,10 @@ reg dpi;
 always @(negedge bit_clk)
 begin
 	timer_exp <= timer == 20'd0;
+end
+
+always @(negedge clk)
+begin
 	dmi <= dm;
 	dpi <= dp;
 end

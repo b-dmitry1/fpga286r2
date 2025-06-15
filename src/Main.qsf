@@ -261,6 +261,9 @@ set_instance_assignment -name WEAK_PULL_UP_RESISTOR OFF -to usb1_m
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR OFF -to usb1_p
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR OFF -to usb2_m
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR OFF -to usb2_p
+set_global_assignment -name VERILOG_FILE uart.v
+set_global_assignment -name VERILOG_FILE riscv.v
+set_global_assignment -name VERILOG_FILE div32.v
 set_global_assignment -name VERILOG_FILE PIC.v
 set_global_assignment -name VERILOG_FILE PIT.v
 set_global_assignment -name VERILOG_FILE SPI.v
@@ -277,4 +280,9 @@ set_global_assignment -name VERILOG_FILE USB_LS_PHY.v
 set_global_assignment -name VERILOG_FILE USB_LS_HID.v
 set_global_assignment -name VERILOG_FILE PS2.v
 set_global_assignment -name QIP_FILE keyboard.qip
+set_global_assignment -name QIP_FILE riscv_ram.qip
+set_global_assignment -name VERILOG_FILE usb_phy.v
+set_global_assignment -name QIP_FILE pll2.qip
+set_global_assignment -name QIP_FILE fifo.qip
+set_global_assignment -name QIP_FILE usbram.qip
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
