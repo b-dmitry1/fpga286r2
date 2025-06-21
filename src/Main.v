@@ -97,25 +97,45 @@ wire sram_area        = addr[31:28] == 4'h0;
 wire uart_area        = addr[31:24] == 8'h10;
 wire timer_area       = addr[31:24] == 8'h11;
 wire gpio_area        = addr[31:24] == 8'h13;
-wire usb_area         = addr[31:24] == 8'h14;
+wire usb1_area        = addr[31:24] == 8'h14 && (addr[13:12] == 2'b00);
+wire usb2_area        = addr[31:24] == 8'h14 && (addr[13:12] == 2'b01);
 wire vps2_area        = addr[31:24] == 8'h15;
+wire mouse_area       = addr[31:24] == 8'h16;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // RISC-V USB
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-wire [31:0] usb_dout;
-wire        usb_ready;
-usb_phy i_usb_phy(
+wire [31:0] usb1_dout;
+wire        usb1_ready;
+usb_phy i_usb_phy1(
 	.clk   (clk),
 	.clk60m(clk60m),
 	.reset_n(reset_n),
 	.addr  (addr),
 	.din   (din),
-	.dout  (usb_dout),
+	.dout  (usb1_dout),
 	.lane  (lane),
 	.wr    (wr),
-	.valid (valid && usb_area),
-	.ready (usb_ready),
+	.valid (valid && usb1_area),
+	.ready (usb1_ready),
+
+	.dm    (usb1_m),
+	.dp    (usb1_p)
+);
+
+wire [31:0] usb2_dout;
+wire        usb2_ready;
+usb_phy i_usb_phy2(
+	.clk   (clk),
+	.clk60m(clk60m),
+	.reset_n(reset_n),
+	.addr  (addr),
+	.din   (din),
+	.dout  (usb2_dout),
+	.lane  (lane),
+	.wr    (wr),
+	.valid (valid && usb2_area),
+	.ready (usb2_ready),
 
 	.dm    (usb2_m),
 	.dp    (usb2_p)
@@ -201,12 +221,12 @@ riscv i_cpu
 	.rst   (~reset_n),
 	.addr  (addr),
 	.dout  (din),
-	.din   (usb_area ? usb_dout : dout),
+	.din   (usb1_area ? usb1_dout : usb2_area ? usb2_dout : dout),
 	.lane  (lane),
 	.wr    (wr),
 	.valid (valid),
-	.ready (ready || usb_ready),
-	
+	.ready (ready || usb1_ready || usb2_ready),
+
 	.timer_irq (timer_irq)
 );
 
@@ -230,8 +250,10 @@ begin
 				uart_area ? uart_dout :
 				timer_area ? timer_dout :
 				gpio_area ? riscv_gpia :
-				usb_area ? usb_dout :
+				usb1_area ? usb1_dout :
+				usb2_area ? usb2_dout :
 				vps2_area ? vps2_dout :
+				mouse_area ? mouse_dout :
 				32'hFFFFFFFF;
 		end
 
@@ -240,7 +262,7 @@ begin
 			if (gpio_area)
 				riscv_gpoa <= din;
 		end
-		
+
 		// "Ready" control
 		ready <= last_valid && valid && ~ready;
 	end
@@ -276,7 +298,7 @@ wire        vps2_ready;
 PS2 ps2(
 	.clk(clk),
 	.reset_n(reset_n),
-	
+
 	.r_addr  (addr),
 	.r_din   (din),
 	.r_dout  (vps2_dout),
@@ -284,7 +306,7 @@ PS2 ps2(
 	.r_wr    (wr),
 	.r_valid (valid && vps2_area),
 	.r_ready (vps2_ready),
-	
+
 	.port(addr_8bit),
 	.dout(ps2_iodout),
 	.din(data_8bit),
@@ -292,10 +314,45 @@ PS2 ps2(
 	.cpu_iordout(cpu_rdin_ps2),
 	.cpu_iowrin(cpu_wrout_ps2),
 	.cpu_iowrout(cpu_wrin_ps2),
-	
-	.irq1(irq[1])
+
+	.irq1(irq[1]),
+
+	.toggle(div[16:15])
 );
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// USB to virtual serial mouse converter
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+wire [7:0] mouse_iodout;
+wire cpu_rdin_mouse;
+reg  cpu_rdout_mouse;
+wire cpu_wrin_mouse;
+reg  cpu_wrout_mouse;
+
+wire [31:0] mouse_dout;
+wire        mouse_ready;
+serial_mouse i_mouse(
+	.clk(clk),
+	.reset_n(reset_n),
+
+	.r_addr  (addr),
+	.r_din   (din),
+	.r_dout  (mouse_dout),
+	.r_lane  (lane),
+	.r_wr    (wr),
+	.r_valid (valid && mouse_area),
+	.r_ready (mouse_ready),
+
+	.port(addr_8bit),
+	.dout(mouse_iodout),
+	.din(data_8bit),
+	.cpu_iordin(cpu_rdout_mouse),
+	.cpu_iordout(cpu_rdin_mouse),
+	.cpu_iowrin(cpu_wrout_mouse),
+	.cpu_iowrout(cpu_wrin_mouse),
+
+	.irq4(irq[4])
+);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // UART
@@ -309,7 +366,7 @@ UART_tx uart_tx(
 	.clk(clk),
 	.data(data_8bit),
 	.send_in(cpu_wrout_dbg),
-	.send_out(uart_tx_in),
+	.send_out(uart_tx_in)
 //	.txd(uart_txd)
 );
 
@@ -392,8 +449,8 @@ wire cpu_wrin_vga;
 reg  cpu_wrout_vga;
 
 VGA vga(.clk(clk), .reset_n(reset_n), .ready(vga_ready),
-	//.a(ca), .din(cdout), .dout(vga_dout), .mrdin(cmrdout), .mwrin(cmwrout),
-	.port(addr_8bit[7:0]), .iodin(data_8bit), .iodout(vga_iodout),
+	// .a(c_a), .din(c_d), .dout(vga_dout), .mrdin(cpu_rdout_sram), .mwrin(cpu_wrout_sram),
+	.port(addr_8bit), .iodin(data_8bit), .iodout(vga_iodout),
 	.iordin(cpu_rdout_vga),
 	.iordout(cpu_rdin_vga),
 	.iowrin(cpu_wrout_vga),
@@ -402,9 +459,9 @@ VGA vga(.clk(clk), .reset_n(reset_n), .ready(vga_ready),
 	.hsync(vga_hsync), .vsync(vga_vsync),
 	.red(video_red), .green(video_green), .blue(video_blue),
 	.video_addr(video_addr),
-	
+
 	.video_din(video_din),
-	
+
 	.gpu_addr(gpu_addr),
 	.gpu_din(gpu_dout),
 	.gpu_dout(gpu_din),
@@ -412,9 +469,9 @@ VGA vga(.clk(clk), .reset_n(reset_n), .ready(vga_ready),
 	.gpu_rdout(gpu_rdin),
 	.gpu_wrin(gpu_wrout),
 	.gpu_wrout(gpu_wrin),
-	
+
 	.planar(vga_planar)
-	
+
 	// ,.hdmi_rp(hdmi_rp), .hdmi_rm(hdmi_rm), .hdmi_gp(hdmi_gp), .hdmi_gm(hdmi_gm), .hdmi_bp(hdmi_bp), .hdmi_bm(hdmi_bm), .hdmi_cp(hdmi_cp), .hdmi_cm(hdmi_cm)
 );
 
@@ -429,18 +486,18 @@ wire cpu_wrin_spi;
 reg  cpu_wrout_spi;
 SPI spi(
 	.clk(clk),
-	
+
 	.addr(addr_8bit),
 	.din(data_8bit),
 	.dout(spi_iodout),
-	
+
 	.cpu_iordin(cpu_rdout_spi),
 	.cpu_iordout(cpu_rdin_spi),
 	.cpu_iowrin(cpu_wrout_spi),
 	.cpu_iowrout(cpu_wrin_spi),
-	
+
 	.ready(spi_ready),
-	
+
 	.cs_n(sd_cs_n),
 	.miso(sd_miso),
 	.mosi(sd_mosi),
@@ -503,7 +560,8 @@ PIC pic(
 	.intr(cpu_intr),
 	
 	.irq0(irq[0]),
-	.irq1(irq[1])
+	.irq1(irq[1]),
+	.irq4(irq[4])
 );
 
 
@@ -556,6 +614,8 @@ task send_io_request;
 	if (dbg_write) cpu_wrout_dbg <= ~cpu_wrout_dbg;
 	if (ps2_write) cpu_wrout_ps2 <= ~cpu_wrout_ps2;
 	if (ps2_read) cpu_rdout_ps2 <= ~cpu_rdout_ps2;
+	if (mouse_write) cpu_wrout_mouse <= ~cpu_wrout_mouse;
+	if (mouse_read) cpu_rdout_mouse <= ~cpu_rdout_mouse;
 endtask
 
 
@@ -609,6 +669,7 @@ begin
 		pic_read ? result_16bit :
 		vga_read ? result_16bit :
 		ps2_read ? result_16bit :
+		mouse_read ? result_16bit :
 		inta ? irq_vector :
 		16'hZZZZ;
 end
@@ -618,6 +679,7 @@ wire [7:0] io_dout =
 	pic_read ? pic_iodout :
 	pit_read ? pit_iodout :
 	ps2_read ? ps2_iodout :
+	mouse_read ? mouse_iodout :
 	spi_iodout;
 
 always @(negedge div[0])
@@ -644,11 +706,13 @@ wire pit_area = cpu_a[11:2] == 10'b0000010000;
 // PIC: I/O 020-021
 wire pic_area = cpu_a[11:1] == 11'b00000010000;
 // VGA: I/O 3B0-3DF
-wire vga_area = (cpu_a[11:7] == 5'b00111) || (cpu_a[11:0] == 12'h0BE);
+wire vga_area = (cpu_a[11:5] == 7'b0011101) || (cpu_a[11:5] == 7'b0011110) || (cpu_a[11:0] == 12'h0BE);
 // DEBUG UART: I/O 0BC
 wire dbg_area = cpu_a[11:0] == 12'hBC;
 // PS/2: I/O 060-064
 wire ps2_area = cpu_a[11:3] == 9'b000001100;
+// COM1: I/O 3F8-3FF
+wire com1_area = cpu_a[11:3] == 9'b001111111;
 
 // Decoded commands and areas
 reg bios_read;
@@ -669,6 +733,8 @@ reg vga_write;
 reg dbg_write;
 reg ps2_read;
 reg ps2_write;
+reg mouse_read;
+reg mouse_write;
 
 reg io_read;
 reg io_write;
@@ -716,6 +782,8 @@ begin
 		dbg_write <= dbg_area & io_write_cycle;
 		ps2_read <= ps2_area & io_read_cycle;
 		ps2_write <= ps2_area & io_write_cycle;
+		mouse_read <= com1_area & io_read_cycle;
+		mouse_write <= com1_area & io_write_cycle;
 		
 		io_read <= io_read_cycle;
 		io_write <= io_write_cycle;
@@ -726,7 +794,7 @@ begin
 		
 		data_8bit <= addr_8bit[0] ? cpu_d[15:8] : cpu_d[7:0];
 		
-		if (io_read || io_write)
+		if (io_read || io_write) // || (vga_planar && c_a[23:16] == 8'h0A))
 		begin
 			cycle_phase0 <= c_a[0] == 1'b0;
 			cycle_phase1 <= cpu_bhe_n == 1'b0;

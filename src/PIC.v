@@ -17,7 +17,8 @@ module PIC(
 	output wire intr,
 	
 	input wire irq0,
-	input wire irq1
+	input wire irq1,
+	input wire irq4
 );
 
 // Здесь IRQ0 срабатывает по фронту, а IRQ1 по высокому уровню
@@ -43,7 +44,7 @@ begin
 	irq_enable <= (~reset_n) | inta ? 1'b0 : iowr && cs_20h ? 1'b1 : irq_enable;
 	
 	irq_vector <= (~reset_n) || (iowr && cs_20h) ? 8'd0 :
-		|irq_vector ? irq_vector : irq0 ^ irq0_toggle ? 8'd8 : irq1 ? 8'd9 : 8'd0;
+		|irq_vector ? irq_vector : irq0 ^ irq0_toggle ? 8'd8 : irq1 ? 8'd9 : irq4 ? 8'd12 : 8'd0;
 		
 	irq0_toggle <= (irq0 ^ irq0_toggle) && (irq_vector == 8'd8) ? ~irq0_toggle : irq0_toggle;
 

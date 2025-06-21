@@ -37,7 +37,20 @@
 #define MOUSE_RIGHT	2
 #define MOUSE_MIDDLE	4
 
+#define JOYSTICK_LEFT	0x001
+#define JOYSTICK_RIGHT	0x002
+#define JOYSTICK_UP	0x004
+#define JOYSTICK_DOWN	0x008
+#define JOYSTICK_1	0x010
+#define JOYSTICK_2	0x020
+#define JOYSTICK_3	0x040
+#define JOYSTICK_4	0x080
+#define JOYSTICK_SELECT	0x100
+#define JOYSTICK_START	0x200
+
+
 volatile unsigned char* ps2_keyb = (volatile unsigned char*)0x15000000;
+volatile unsigned char* serial_mouse = (volatile unsigned char*)0x16000000;
 
 typedef enum
 {
@@ -126,11 +139,13 @@ typedef struct {
 	int print_packets;
 	unsigned char keys[4];
 	unsigned char ctrl;
+	unsigned int prev_data;
 } usb_t;
 
 usb_t usb_ports[NUM_PORTS];
 
 usb_t* usb = usb_ports;
+int port = 0;
 
 const unsigned char xt_keys[] = {
 	0, 0, 0, 0, 0x1E, 0x30, 0x2E, 0x20, 0x12, 0x21, 0x22, 0x23, 0x17, 0x24, 0x25, 0x26,
@@ -435,18 +450,17 @@ void set_device_id(void)
 		case 3:
 			switch (device_subclass)
 			{
+				case 0:
+					usb->device_type = USB_JOYSTICK;
+					break;
 				case 1:
 					switch (protocol)
 					{
-						case 0:
 						case 1:
 							usb->device_type = USB_KEYBOARD;
 							break;
 						case 2:
 							usb->device_type = USB_MOUSE;
-							break;
-						case 3:
-							usb->device_type = USB_JOYSTICK;
 							break;
 					}
 					break;
@@ -616,31 +630,95 @@ void process_keyboard_report(unsigned char* data, int size)
 
 void process_mouse_report(unsigned char* data, int size)
 {
-
+	int left = data[0] & 1 ? 1 : 0;
+	int right = data[0] & 2 ? 1 : 0;
+	char dx = data[1];
+	char dy = data[2];
+	*serial_mouse = 0x80 | (left ? 0 : 4) | 2 | (right ? 0 : 1);
+	*serial_mouse = (unsigned char)(dx);
+	*serial_mouse = (unsigned char)(-dy);
+	*serial_mouse = 0;
+	*serial_mouse = 0;
 }
 
 void process_joystick_report(unsigned char* data, int size)
 {
+	static int last_buttons = 0;
+	int buttons = 0, xor;
+	// left, right, up, down, space, up, shift, ctrl, esc, enter
+	const unsigned char codes[] = { 0x4b, 0x4d, 0x48, 0x50, 0x39, 0x48, 0x2a, 0x1d, 0x01, 0x1c };
+	int i, mask;
 
+	if (size == 8)
+	{
+		if (data[3] < 0x40) buttons |= JOYSTICK_LEFT;
+		if (data[3] > 0xC0) buttons |= JOYSTICK_RIGHT;
+		if (data[4] < 0x40) buttons |= JOYSTICK_UP;
+		if (data[4] > 0xC0) buttons |= JOYSTICK_DOWN;
+		if (data[5] & 0x10) buttons |= JOYSTICK_1;
+		if (data[5] & 0x20) buttons |= JOYSTICK_2;
+		if (data[5] & 0x40) buttons |= JOYSTICK_3;
+		if (data[5] & 0x80) buttons |= JOYSTICK_4;
+
+		if (data[6] & 0x10) buttons |= JOYSTICK_SELECT;
+		if (data[6] & 0x20) buttons |= JOYSTICK_START;
+	}
+
+	xor = buttons ^ last_buttons;
+	for (i = 0, mask = 1; i < sizeof(codes) / sizeof(codes[0]); i++, mask <<= 1)
+	{
+		if (xor & mask)
+		{
+			if (last_buttons & mask)
+			{
+				// Send key-up events twice to make sure they are received by game
+				*ps2_keyb = codes[i] | 0x80;
+				*ps2_keyb = codes[i] | 0x80;
+			}
+			else
+			{
+				*ps2_keyb = codes[i];
+			}
+		}
+	}
+
+	last_buttons = buttons;
 }
 
 void process_hid_report(unsigned char* data, int size)
 {
-	if (usb->device_type == USB_KEYBOARD ||
-		(usb->conf_descr.conf.bNumInterfaces == 2 && usb->current_interface == 0))
-		process_keyboard_report(data, size);
-	else if (usb->device_type == USB_MOUSE ||
-		(usb->conf_descr.conf.bNumInterfaces == 2 && usb->current_interface == 1))
-		process_mouse_report(data, size);
-	else if (usb->device_type == USB_JOYSTICK)
-		process_joystick_report(data, size);
+	if (usb->conf_descr.conf.bNumInterfaces == 2)
+	{
+		if (usb->device_type == USB_JOYSTICK)
+			process_joystick_report(data, size);
+		else if (usb->current_interface == 0)
+			process_keyboard_report(data, size);
+		else if (usb->current_interface == 1)
+			process_mouse_report(data, size);
+	}
+	else
+	{
+		if (usb->device_type == USB_KEYBOARD)
+			process_keyboard_report(data, size);
+		else if (usb->device_type == USB_MOUSE)
+			process_mouse_report(data, size);
+		else if (usb->device_type == USB_JOYSTICK)
+			process_joystick_report(data, size);
+	}
+}
+
+void print_port_name(void)
+{
+	print("usb[");
+	print_int(port);
+	print("]: ");
 }
 
 int main(void)
 {
 	char s[32];
 	int i, n, size;
-	unsigned int data, prev_data = 0;
+	unsigned int data;
 	int usb_time = 0;
 	int ch;
 
@@ -656,8 +734,12 @@ int main(void)
 	usb_ports[1].ctrl1 = usb2_ctrl1;
 	usb_ports[1].ctrl2 = usb2_ctrl2;
 
-	for (;;)
+	usb->print_packets = 0;
+
+	for (port = 0; ; port = (port + 1) % NUM_PORTS)
 	{
+		usb = &usb_ports[port];
+
 		ch = recvchar();
 		if (ch != 0)
 			putchar(ch);
@@ -666,21 +748,25 @@ int main(void)
 
 		if (!(data & CTRL1_CONNECTED))
 		{
-			if (prev_data & CTRL1_CONNECTED)
+			if (usb->prev_data & CTRL1_CONNECTED)
+			{
+				print_port_name();
 				print("USB device disconnected\n");
+			}
 			usb->state = s_nodevice;
 			usb->errors = 0;
 		}
 
 		if (usb->errors > 100)
 		{
+			print_port_name();
 			print("Too many errors, resetting\n");
 			*usb->ctrl1 = CTRL1_FORCE_RESET;
 			usb->state = s_nodevice;
 			usb->errors = 0;
 		}
 
-		if (((data ^ prev_data) & CTRL1_ODD_FRAME) && (!(data & CTRL1_FRAME_END)))
+		if (((data ^ usb->prev_data) & CTRL1_ODD_FRAME) && (!(data & CTRL1_FRAME_END)))
 		{
 			usb_time++;
 
@@ -690,6 +776,7 @@ int main(void)
 					usb->device_type = USB_NONE;
 					if (data & CTRL1_CONNECTED)
 					{
+						print_port_name();
 						if (data & CTRL1_FULL_SPEED)
 							print("USB full-speed device connected\n");
 						else
@@ -702,6 +789,7 @@ int main(void)
 					n = usb_read_multi(0, 0, get_descr, sizeof(get_descr), (unsigned char*)&usb->device_descr, sizeof(usb->device_descr));
 					if (n == sizeof(usb->device_descr))
 					{
+						print_port_name();
 						print("VID: ");
 						print_hex8(usb->device_descr.idVendor[1]);
 						print_hex8(usb->device_descr.idVendor[0]);
@@ -711,11 +799,14 @@ int main(void)
 						print("\n");
 						usb->state = s_descr2;
 					}
+					else
+						usb->errors++;
 					break;
 				case s_descr2:
 					n = usb_read_multi(0, 0, get_descr2, sizeof(get_descr2), (unsigned char*)&usb->conf_descr, sizeof(usb->conf_descr));
 					if (n == sizeof(usb->conf_descr))
 					{
+						print_port_name();
 						print("Device type: ");
 						set_device_id();
 						print("\nInterfaces: ");
@@ -738,6 +829,7 @@ int main(void)
 					get_descr3[6] = size;
 					if (n < 2 || size < 2 || size > 64)
 					{
+						print_port_name();
 						print("Unable to identify\n");
 						usb->state = s_descr4;
 						break;
@@ -745,6 +837,7 @@ int main(void)
 					n = usb_read_multi(0, 0, get_descr3, sizeof(get_descr3), str_buffer, size - 2);
 					if (n > 0)
 					{
+						print_port_name();
 						for (i = 2; i < size; i += 2)
 						{
 							putchar(str_buffer[i]);
@@ -765,6 +858,7 @@ int main(void)
 					get_descr3[6] = size;
 					if (n < 2 || size < 2 || size > 64)
 					{
+						print_port_name();
 						print("Unable to identify\n");
 						usb->state = s_addr1;
 						break;
@@ -796,6 +890,7 @@ int main(void)
 					{
 						usb->state = s_conf1;
 						usb->errors = 0;
+						print_port_name();
 						print("Address ok\n");
 					}
 					else
@@ -808,11 +903,16 @@ int main(void)
 						if (!memcmp(usb_buffer, "\x80\xD2", 2))
 						{
 							// Bypass boot protocol setup if it was failed last time
-							usb->state = memcmp(usb->no_protocol_setup_vid_pid, &usb->device_descr.idVendor, 4) ?
-								s_get_protocol : s_ready;
+							if (usb->device_type == USB_JOYSTICK)
+								usb->state = s_ready;
+							else
+								usb->state = memcmp(usb->no_protocol_setup_vid_pid, &usb->device_descr.idVendor, 4) ?
+									s_get_protocol : s_ready;
 							usb->errors = 0;
+							print_port_name();
 							print("Configuration ok\n");
-							// dump_packet(&usb->device_descr, 36);
+							// dump_packet(&usb->conf_descr, sizeof(usb->conf_descr));
+							// print("\n");
 						}
 					}
 					else
@@ -823,6 +923,7 @@ int main(void)
 					if (n < 0)
 					{
 						// Oops. Save VID/PID and try again
+						print_port_name();
 						print("Stall on a protocol setup - resetting\n");
 						memcpy(usb->no_protocol_setup_vid_pid, &usb->device_descr.idVendor, 4);
 						*usb->ctrl1 = CTRL1_FORCE_RESET;
@@ -844,6 +945,7 @@ int main(void)
 						{
 							usb->state = s_ready;
 							usb->errors = 0;
+							print_port_name();
 							print("Protocol ok\n");
 						}
 					}
@@ -862,6 +964,7 @@ int main(void)
 						{
 							usb->state = s_ready;
 							usb->errors = 0;
+							print_port_name();
 							print("Unstall ok\n");
 						}
 					}
@@ -873,9 +976,6 @@ int main(void)
 					n = usb_send(usb_buffer, 4, usb_buffer, sizeof(usb_buffer));
 					if (n > 0)
 					{
-						if (usb->conf_descr.conf.bNumInterfaces > 1)
-							usb->current_interface = (usb->current_interface + 1) % NUM_INTERFACES;
-						usb->errors = 0;
 						if (n > 2)
 						{
 							if (!memcmp(usb_buffer, "\x80\x4B", 2) || !memcmp(usb_buffer, "\x80\xC3", 2))
@@ -885,12 +985,24 @@ int main(void)
 									process_hid_report(&usb_buffer[2], n - 4);
 									if (usb->print_packets)
 									{
+										print_port_name();
+										print_int(usb->current_interface);
+										switch (usb->device_type)
+										{
+											case USB_KEYBOARD: print("K"); break;
+											case USB_MOUSE: print("M"); break;
+											case USB_JOYSTICK: print("J"); break;
+										}
+										print(": ");
 										dump_packet(usb_buffer, n);
 										print("\n");
 									}
 								}
 							}
 						}
+						if (usb->conf_descr.conf.bNumInterfaces > 1)
+							usb->current_interface = (usb->current_interface + 1) % NUM_INTERFACES;
+						usb->errors = 0;
 					}
 					else
 						usb->errors++;
@@ -898,6 +1010,6 @@ int main(void)
 			}
 		}
 
-		prev_data = data;
+		usb->prev_data = data;
 	}
 }

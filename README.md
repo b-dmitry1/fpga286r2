@@ -14,8 +14,10 @@
 * Full-speed (12 Mbit/s) device support for fast gaming keyboards and mouses.
 * Composite device support (Radio keyboard+mouse, 2-in-1 devices).
 * USB PHYs are now controlled by RISC-V I/O processor. Firmware was written in C and can be easily improved.
+* Virtual COM-port emulation for serial mouse drivers.
+* Some cheap joysticks are supported too, they will work in a keyboard mode. Key mappings could be defined in a RISC-V program.
 
-In this version only upper USB port is connected. The lower one needs some firmware rework. Joystick and mouse report are ignored now and will be available soon.
+If you need mouse please use ctmouse.exe driver from FreeDOS - it works perfectly on COM1 (virtual USB-RS232).
 
 The RISC-V core will print USB device information on a DEBUG port. If you need the DEBUG port to be controlled by main processor comment "txd" line on a RISC-V UART and uncomment "txd" line of a CPU's UART.
 

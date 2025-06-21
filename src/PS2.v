@@ -20,7 +20,9 @@ module PS2(
 	input wire cpu_iowrin,
 	output reg cpu_iowrout,
 
-	output reg irq1
+	output reg irq1,
+
+	input  wire [1:0] toggle
 );
 
 reg   [7:0] buffer [0:15];
@@ -47,13 +49,19 @@ always @(posedge clk)
 begin
 	cpu_iordout <= cpu_iordin;
 	cpu_iowrout <= cpu_iowrin;
-	
-	dout <= buffer[rp];
+
+	case (port[2:0])
+		3'd1: dout <= {2'b00, toggle, 4'b0001};
+		3'd2, 3'd3: dout <= 8'hFD;
+		3'd4: dout <= {7'b0001110, rp != wp};
+		default: dout <= buffer[rp];
+	endcase
+
 	irq1 <= rp != wp;
 
 	r_ready <= 1'b0;
 	
-	if (cs_61h && iowr)
+	if (cs_61h && iowr && ~din[7])
 	begin
 		if (rp != wp)
 			rp <= rp + 1'd1;
@@ -63,11 +71,10 @@ begin
 		r_ready <= 1'b1;
 		if (r_valid & ~r_ready)
 		begin
-			if (wp_next != rp)
-			begin
-				buffer[wp] <= r_din[7:0];
-				wp <= wp + 1'd1;
-			end
+			buffer[wp] <= r_din[7:0];
+			wp <= wp + 1'd1;
+			if (wp_next == rp)
+				rp <= rp + 1'd1;
 		end
 	end
 end
