@@ -312,8 +312,8 @@ begin
 		case (port)
 			8'hBE:
 				vmode <= iodin[4:0];
-			//8'hC7:
-				//vga_pal_read_index <= {iodin, 2'b00};
+			8'hC7:
+				vga_pal_read_index <= {iodin, 2'b00};
 			8'hC8:
 				vga_pal_write_index <= {iodin, 2'b00};
 			8'hC9:
@@ -376,11 +376,14 @@ begin
 			iodout <= vga_pal_write_index[9:2];
 		8'hC9:
 		begin
-			case (vga_pal_read_index[1:0])
-				2'b01: iodout <= {2'b00, rgblatch[5:0]};
-				2'b10: iodout <= {2'b00, rgblatch[11:6]};
-				2'b11: iodout <= {2'b00, rgblatch[17:12]};
-			endcase
+			if (iordin ^ iordout)
+			begin
+				case (vga_pal_read_index[1:0])
+					2'b01: iodout <= {2'b00, rgblatch[5:0]};
+					2'b10: iodout <= {2'b00, rgblatch[11:6]};
+					2'b11: iodout <= {2'b00, rgblatch[17:12]};
+				endcase
+			end
 		end
 		8'hC4:
 			iodout <= sq_index;
