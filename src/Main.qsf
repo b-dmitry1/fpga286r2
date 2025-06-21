@@ -261,6 +261,8 @@ set_instance_assignment -name WEAK_PULL_UP_RESISTOR OFF -to usb1_m
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR OFF -to usb1_p
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR OFF -to usb2_m
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR OFF -to usb2_p
+set_global_assignment -name VERILOG_FILE ym3812.v
+set_global_assignment -name VERILOG_FILE riscv_min.v
 set_global_assignment -name VERILOG_FILE uart.v
 set_global_assignment -name VERILOG_FILE riscv.v
 set_global_assignment -name VERILOG_FILE div32.v

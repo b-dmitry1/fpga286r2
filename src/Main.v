@@ -41,7 +41,7 @@ module Main(
 	input wire uart_rxd,
 	output wire uart_txd,
 
-	output wire audio_left,
+	output reg audio_left,
 	output wire audio_right,
 
 	input wire fdd_change_n,
@@ -205,9 +205,6 @@ end
 // RISC-V
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-wire [31:0] riscv_gpia;
-reg  [31:0] riscv_gpoa;
-
 wire [31:0] addr;
 wire [31:0] din;
 reg  [31:0] dout;
@@ -215,7 +212,7 @@ wire [ 3:0] lane;
 wire        wr;
 wire        valid;
 reg         ready;
-riscv i_cpu
+riscv_min i_cpu
 (
 	.clk   (clk),
 	.rst   (~reset_n),
@@ -225,9 +222,9 @@ riscv i_cpu
 	.lane  (lane),
 	.wr    (wr),
 	.valid (valid),
-	.ready (ready || usb1_ready || usb2_ready),
+	.ready (ready || usb1_ready || usb2_ready)
 
-	.timer_irq (timer_irq)
+//	.timer_irq (timer_irq)
 );
 
 reg last_valid;
@@ -249,18 +246,11 @@ begin
 				sram_area ? sram_dout :
 				uart_area ? uart_dout :
 				timer_area ? timer_dout :
-				gpio_area ? riscv_gpia :
 				usb1_area ? usb1_dout :
 				usb2_area ? usb2_dout :
 				vps2_area ? vps2_dout :
 				mouse_area ? mouse_dout :
 				32'hFFFFFFFF;
-		end
-
-		if (valid & wr)
-		begin
-			if (gpio_area)
-				riscv_gpoa <= din;
 		end
 
 		// "Ready" control
@@ -599,6 +589,39 @@ BIOS bios(
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Fake YM3812
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+wire [7:0] ym3812_iodout;
+wire cpu_rdin_ym3812;
+reg  cpu_rdout_ym3812;
+wire cpu_wrin_ym3812;
+reg  cpu_wrout_ym3812;
+wire [7:0] music;
+ym3812 i_ym3812(
+	.clk(clk),
+	.reset_n(reset_n),
+
+	.port(addr_8bit),
+	.dout(ym3812_iodout),
+	.din(data_8bit),
+	.cpu_iordin(cpu_rdout_ym3812),
+	.cpu_iordout(cpu_rdin_ym3812),
+	.cpu_iowrin(cpu_wrout_ym3812),
+	.cpu_iowrout(cpu_wrin_ym3812),
+	
+	.music(music)
+);
+
+wire ym3812_ready = cpu_rdout_ym3812 == cpu_rdin_ym3812;
+
+reg [7:0] pwm;
+always @(posedge clk)
+begin
+	pwm <= pwm + 1'd1;
+	audio_left <= pwm < music;
+end
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // 16 bit to 8 bit bridge
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -614,6 +637,8 @@ task send_io_request;
 	if (dbg_write) cpu_wrout_dbg <= ~cpu_wrout_dbg;
 	if (ps2_write) cpu_wrout_ps2 <= ~cpu_wrout_ps2;
 	if (ps2_read) cpu_rdout_ps2 <= ~cpu_rdout_ps2;
+	if (ym3812_write) cpu_wrout_ym3812 <= ~cpu_wrout_ym3812;
+	if (ym3812_read) cpu_rdout_ym3812 <= ~cpu_rdout_ym3812;
 	if (mouse_write) cpu_wrout_mouse <= ~cpu_wrout_mouse;
 	if (mouse_read) cpu_rdout_mouse <= ~cpu_rdout_mouse;
 endtask
@@ -669,6 +694,7 @@ begin
 		pic_read ? result_16bit :
 		vga_read ? result_16bit :
 		ps2_read ? result_16bit :
+		ym3812_read ? result_16bit :
 		mouse_read ? result_16bit :
 		inta ? irq_vector :
 		16'hZZZZ;
@@ -679,6 +705,7 @@ wire [7:0] io_dout =
 	pic_read ? pic_iodout :
 	pit_read ? pit_iodout :
 	ps2_read ? ps2_iodout :
+	ym3812_read ? ym3812_iodout :
 	mouse_read ? mouse_iodout :
 	spi_iodout;
 
@@ -713,6 +740,8 @@ wire dbg_area = cpu_a[11:0] == 12'hBC;
 wire ps2_area = cpu_a[11:3] == 9'b000001100;
 // COM1: I/O 3F8-3FF
 wire com1_area = cpu_a[11:3] == 9'b001111111;
+// YM3812: I/O 388-389
+wire ym3812_area = cpu_a[11:3] == 9'b001110001;
 
 // Decoded commands and areas
 reg bios_read;
@@ -733,6 +762,8 @@ reg vga_write;
 reg dbg_write;
 reg ps2_read;
 reg ps2_write;
+reg ym3812_read;
+reg ym3812_write;
 reg mouse_read;
 reg mouse_write;
 
@@ -747,7 +778,7 @@ wire io_read_cycle = cpu_cmd[2:0] == 3'b001;
 wire io_write_cycle = cpu_cmd[2:0] == 3'b010;	
 wire inta_cycle = cpu_cmd[3:0] == 4'b0000;	
 
-wire io_ready = spi_ready && vga_ready && dbg_ready;
+wire io_ready = spi_ready && vga_ready && dbg_ready && ym3812_ready;
 
 always @(negedge cpu_clk_n)
 begin
@@ -782,6 +813,8 @@ begin
 		dbg_write <= dbg_area & io_write_cycle;
 		ps2_read <= ps2_area & io_read_cycle;
 		ps2_write <= ps2_area & io_write_cycle;
+		ym3812_read <= ym3812_area & io_read_cycle;
+		ym3812_write <= ym3812_area & io_write_cycle;
 		mouse_read <= com1_area & io_read_cycle;
 		mouse_write <= com1_area & io_write_cycle;
 		
