@@ -618,6 +618,8 @@ void process_keyboard_report(unsigned char* data, int size)
 			if (key < sizeof(xt_keys))
 			{
 				key = xt_keys[key];
+				// Send key-up event twice to make sure it is received
+				*ps2_keyb = key | 0x80;
 				*ps2_keyb = key | 0x80;
 			}
 		}
