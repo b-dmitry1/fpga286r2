@@ -1,0 +1,275 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+#include "board.h"
+
+volatile unsigned char* r = (volatile unsigned char*)0x1F00u;
+
+unsigned char prev_play[16];
+
+const unsigned char sine_wave[256] = {
+	0x00, 0x03, 0x06, 0x09, 0x0C, 0x10, 0x13, 0x16, 0x19, 0x1C, 0x1F, 0x22, 0x25, 0x28, 0x2B, 0x2E,
+	0x31, 0x33, 0x36, 0x39, 0x3C, 0x3F, 0x41, 0x44, 0x47, 0x49, 0x4C, 0x4E, 0x51, 0x53, 0x55, 0x58,
+	0x5A, 0x5C, 0x5E, 0x60, 0x62, 0x64, 0x66, 0x68, 0x6A, 0x6B, 0x6D, 0x6F, 0x70, 0x71, 0x73, 0x74,
+	0x75, 0x76, 0x78, 0x79, 0x7A, 0x7A, 0x7B, 0x7C, 0x7D, 0x7D, 0x7E, 0x7E, 0x7E, 0x7F, 0x7F, 0x7F,
+	0x7F, 0x7F, 0x7F, 0x7F, 0x7E, 0x7E, 0x7E, 0x7D, 0x7D, 0x7C, 0x7B, 0x7A, 0x7A, 0x79, 0x78, 0x76,
+	0x75, 0x74, 0x73, 0x71, 0x70, 0x6F, 0x6D, 0x6B, 0x6A, 0x68, 0x66, 0x64, 0x62, 0x60, 0x5E, 0x5C,
+	0x5A, 0x58, 0x55, 0x53, 0x51, 0x4E, 0x4C, 0x49, 0x47, 0x44, 0x41, 0x3F, 0x3C, 0x39, 0x36, 0x33,
+	0x31, 0x2E, 0x2B, 0x28, 0x25, 0x22, 0x1F, 0x1C, 0x19, 0x16, 0x13, 0x10, 0x0C, 0x09, 0x06, 0x03,
+	0x00, 0xFD, 0xFA, 0xF7, 0xF4, 0xF0, 0xED, 0xEA, 0xE7, 0xE4, 0xE1, 0xDE, 0xDB, 0xD8, 0xD5, 0xD2,
+	0xCF, 0xCD, 0xCA, 0xC7, 0xC4, 0xC1, 0xBF, 0xBC, 0xB9, 0xB7, 0xB4, 0xB2, 0xAF, 0xAD, 0xAB, 0xA8,
+	0xA6, 0xA4, 0xA2, 0xA0, 0x9E, 0x9C, 0x9A, 0x98, 0x96, 0x95, 0x93, 0x91, 0x90, 0x8F, 0x8D, 0x8C,
+	0x8B, 0x8A, 0x88, 0x87, 0x86, 0x86, 0x85, 0x84, 0x83, 0x83, 0x82, 0x82, 0x82, 0x81, 0x81, 0x81,
+	0x81, 0x81, 0x81, 0x81, 0x82, 0x82, 0x82, 0x83, 0x83, 0x84, 0x85, 0x86, 0x86, 0x87, 0x88, 0x8A,
+	0x8B, 0x8C, 0x8D, 0x8F, 0x90, 0x91, 0x93, 0x95, 0x96, 0x98, 0x9A, 0x9C, 0x9E, 0xA0, 0xA2, 0xA4,
+	0xA6, 0xA8, 0xAB, 0xAD, 0xAF, 0xB2, 0xB4, 0xB7, 0xB9, 0xBC, 0xBF, 0xC1, 0xC4, 0xC7, 0xCA, 0xCD,
+	0xCF, 0xD2, 0xD5, 0xD8, 0xDB, 0xDE, 0xE1, 0xE4, 0xE7, 0xEA, 0xED, 0xF0, 0xF4, 0xF7, 0xFA, 0xFD
+};
+
+void wait(void)
+{
+	volatile int w;
+	for (w = 0; w < 1000000; w++);
+}
+
+void print_hex(unsigned int value)
+{
+	const char *hex = "0123456789ABCDEF";
+	int i;
+
+	for (i = 0; i < 8; i++)
+	{
+		putchar(hex[value >> 28u]);
+		value <<= 4;
+	}
+}
+
+void print_hex16(unsigned int value)
+{
+	const char *hex = "0123456789ABCDEF";
+	int i;
+
+	for (i = 0; i < 4; i++)
+	{
+		putchar(hex[value >> 12u]);
+		value <<= 4;
+	}
+}
+
+void print_hex8(unsigned char value)
+{
+	const char *hex = "0123456789ABCDEF";
+
+	putchar(hex[value >> 4]);
+	putchar(hex[value & 0xF]);
+}
+
+void dump(const unsigned char *addr)
+{
+	int i;
+	for (i = 0; i < 256; i++)
+	{
+		if (i % 16 == 0)
+		{
+			print_hex((int)&addr[i]);
+			print("  ");
+		}
+		print_hex8(addr[i]);
+		print(" ");
+		if (i % 16 == 15)
+			print("\n");
+	}
+}
+
+unsigned int counters[16];
+int envelope[16];
+int envelope_part[16];
+
+int main(void)
+{
+	int i;
+	unsigned int last_time = 0;
+	int toggle = 0;
+	int fn, block;
+	int period;
+	int sin;
+	int play_index;
+
+	int acc, val;
+	int wave;
+	int angle;
+	int harmonic;
+	int attack, decay, sustain, release;
+	int volume;
+	int feedback;
+
+	int rhythm;
+
+	memset(counters, 0, sizeof(counters));
+	memset(envelope, 0, sizeof(envelope));
+	memset(envelope_part, 0, sizeof(envelope_part));
+
+	print("YM3812 RISC-V\n");
+
+	for (;;)
+	{
+		do
+		{
+			for (play_index = 0; play_index < 16; play_index++)
+			{
+				if ((r[0xB0 + play_index] & 0x20) == 0)
+				{
+					if (envelope_part[play_index] > 0)
+						envelope_part[play_index] = 0;
+				}
+			}
+		} while (*timer == last_time);
+		last_time = *timer;
+
+		acc = 2048;
+
+		rhythm = r[0xBD] & 0x20 ? 1 : 0;
+
+		for (i = 0; i < (rhythm ? 6 : 9); i++)
+		{
+			fn = r[0xa0 + i];
+			block = r[0xb0 + i];
+			harmonic = r[0x20 + i] & 15;
+			wave = r[0xE0 + i] & 3;
+
+			attack = r[0x60 + i] >> 4;
+			decay = r[0x60 + i] & 0x0F;
+			sustain = r[0x80 + i] >> 4;
+			release = r[0x80 + i] & 0x0F;
+
+			volume = 64;//(r[0x40 + i] & 0x3F) + 1;
+
+			feedback = (r[0xC0 + i] >> 1) & 0x07;
+
+			// f ffff ffff fbbb
+
+			period = fn;
+			period |= (block & 0x03) << 8;
+			period += 32;
+			period <<= (block >> 2) & 0x07;
+
+			switch (harmonic)
+			{
+				case 0:
+					period >>= 1;
+					break;
+				case 11:
+					period *= 10;
+					break;
+				case 13:
+					period *= 12;
+					break;
+				case 14:
+					period *= 15;
+					break;
+				default:
+					period *= harmonic;
+					break;
+			}
+
+			if (i >= 3 && i <= 5)
+			{
+				if (r[0xC0 + i - 3] & 0x01)
+				{
+					val = envelope[i - 1];
+					period = ((period >> 8) * val) >> 8;
+					/*
+					if (val & 0x8000)
+						period = period >> 2;
+					else if (val & 0x4000)
+						period = period >> 1;
+					else if (val & 0x2000)
+						;
+					else if (val & 0x1000)
+						period = period << 1;
+					else if (val & 0x800)
+						period = period << 2;
+					else if (val & 0x400)
+						period = period << 3;
+					else if (val & 0x200)
+						period = period << 4;
+					else
+						period = period << 5;
+					*/
+				}
+			}
+
+			if (block & 0x20)
+				counters[i] += period;
+			else
+				counters[i] = 0;
+
+			angle = (counters[i] >> 9) & 0xFF;
+
+			sin = sine_wave[angle];
+			if (sin & 0x80)
+				sin |= 0xFFFFFF00;
+
+			switch (wave)
+			{
+				case 1:
+					if (sin < 0)
+						sin = 0;
+					break;
+				case 2:
+					if (sin < 0)
+						sin = -sin;
+					break;
+				case 3:
+					if (sin < 0)
+						sin = -sin;
+					if (angle & 0x40)
+						sin = 0;
+					break;
+			}
+
+			switch (envelope_part[i])
+			{
+				case 0:
+					envelope[i] += (attack + 1) * 1024;
+					if (envelope[i] >= 65535)
+					{
+						envelope[i] = 65535;
+						envelope_part[i] = 1;
+					}
+					break;
+				case 1:
+					envelope[i] -= (decay + 1) * 512;
+					if (envelope[i] <= (0xFFFF >> sustain))
+					{
+						envelope[i] = 0xFFFF >> sustain;
+						envelope_part[i] = 2;
+					}
+					break;
+				case 2:
+					if ((r[0x20 + i] & r[0xB0 + i] & 0x20) == 0)
+					{
+						envelope_part[i] = 3;
+					}
+					break;
+				case 3:
+					envelope[i] -= (release + 1) * 512;
+					if (envelope[i] <= 0)
+					{
+						envelope[i] = 0;
+						envelope_part[i] = 4;
+					}
+					break;
+			}
+
+			sin = sin * (envelope[i] >> 8);
+			sin >>= 8;
+
+			if (i > 2 || ((r[0xC0 + i] & 0x01) == 0))
+				acc += (sin * volume) >> 6;
+		}
+
+		*gpio = acc >> 4;
+	}
+}

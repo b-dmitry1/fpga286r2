@@ -42,7 +42,7 @@ module Main(
 	output wire uart_txd,
 
 	output reg audio_left,
-	output wire audio_right,
+	output reg audio_right,
 
 	input wire fdd_change_n,
 	input wire fdd_wprot_n,
@@ -259,7 +259,7 @@ begin
 end
 
 //////////////////////////////////////////////////////////////////////////////
-// Boot ROM / RAM
+// RISC-V ROM / RAM
 //////////////////////////////////////////////////////////////////////////////
 
 wire [31:0] sram_dout;
@@ -356,7 +356,7 @@ UART_tx uart_tx(
 	.clk(clk),
 	.data(data_8bit),
 	.send_in(cpu_wrout_dbg),
-	.send_out(uart_tx_in)
+	.send_out(uart_tx_in),
 //	.txd(uart_txd)
 );
 
@@ -391,6 +391,7 @@ SDRAM sdram(.clk(clk), .clk1(clk_sdram), .reset_n(reset_n), .ready(sdram_ready),
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // SRAM
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 wire [15:0] cpu_dout_sram;
 reg [15:0] cpu_din_sram;
 wire cpu_rdin_sram;
@@ -610,15 +611,18 @@ ym3812 i_ym3812(
 	.cpu_iowrout(cpu_wrin_ym3812),
 	
 	.music(music)
+	
+//	.txd   (uart_txd)
 );
 
 wire ym3812_ready = cpu_rdout_ym3812 == cpu_rdin_ym3812;
 
-reg [7:0] pwm;
+reg [9:0] pwm;
 always @(posedge clk)
 begin
 	pwm <= pwm + 1'd1;
 	audio_left <= pwm < music;
+	audio_right <= pwm < music;
 end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
